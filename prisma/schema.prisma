@@ -6,3 +6,231 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Knowledge Base (Milestone: per-user KB for the later RAG pipeline)
+//
+// Auth boundary:
+// - auth.users (Supabase Auth) lives in the "auth" Postgres schema, which
+//   Prisma does not manage and has no model for.
+// - Profile.id is NOT app-generated. It is populated by a Postgres trigger
+//   fired AFTER INSERT ON auth.users (see prisma/sql/knowledge_base_setup.sql),
+//   because Prisma's schema DSL cannot declare a foreign key into a schema
+//   it doesn't manage. Prisma app code must only read/update this row,
+//   never insert one.
+// - Deliberately minimal for this milestone: no denormalized email/name/etc.
+//   Those belong to a broader profile-settings feature and can be added
+//   later without touching the trigger contract (it only needs to insert
+//   `id`).
+//
+// RLS: every table below gets `ENABLE ROW LEVEL SECURITY` in raw SQL with
+// NO permissive policies attached. This app's Next.js server layer — not
+// Supabase PostgREST/RLS — is the actual authorization boundary: Prisma
+// connects through a privileged Postgres role that bypasses RLS regardless
+// of any policies we write, so granular per-row policies here would never
+// actually be evaluated. RLS is enabled purely as defense-in-depth (e.g. an
+// accidentally-exposed anon/PostgREST path), not as the primary gate. That
+// bypass assumption depends on the Postgres role behind DATABASE_URL being
+// the table owner (or BYPASSRLS) — see the SQL file for the load-bearing
+// detail this implies for the signup trigger too.
+//
+// pgvector: intentionally absent. Every facet below carries a canonical
+// `content` text column — the plain-text body a later embedding job will
+// chunk/embed — so adding vector columns later is an additive
+// `ALTER TABLE ... ADD COLUMN embedding vector(n)` per table, not a reshape.
+// ─────────────────────────────────────────────────────────────────────────
+
+model Profile {
+  /// Same UUID as auth.users.id — set exclusively by the `handle_new_user`
+  /// trigger. No @default here on purpose.
+  id        String   @id @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  resume         Resume?
+  projects       Project[]
+  experiences    Experience[]
+  achievements   Achievement[]
+  skills         Skill[]
+  writingSamples WritingStyleSample[]
+  goals          Goal[]
+  opinions       Opinion[]
+
+  @@map("profiles")
+}
+
+/// A user's single current resume/CV (strict 1:1 — versioning, if ever
+/// needed, is a later milestone that relaxes the @unique below).
+model Resume {
+  id        String @id @default(cuid())
+  profileId String @unique @map("profile_id") @db.Uuid
+
+  /// Full resume/CV text (pasted or extracted from an uploaded file) — the
+  /// canonical chunk a later RAG milestone will embed.
+  content  String  @db.Text
+  fileName String? @map("file_name")
+  fileUrl  String? @map("file_url")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // No separate @@index([profileId]): the @unique constraint above already
+  // creates a btree index on profile_id, which fully covers FK lookups.
+  @@map("resumes")
+}
+
+/// One row per project the user wants the AI to know about/draw content from.
+model Project {
+  id        String    @id @default(cuid())
+  profileId String    @map("profile_id") @db.Uuid
+  title     String
+  role      String?
+  techStack String[]  @map("tech_stack")
+  url       String?
+  startDate DateTime? @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+
+  /// Narrative description — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("projects")
+}
+
+/// One row per job/role in the user's work history.
+model Experience {
+  id        String    @id @default(cuid())
+  profileId String    @map("profile_id") @db.Uuid
+  company   String
+  title     String
+  location  String?
+  startDate DateTime? @map("start_date") @db.Date
+  /// Null means "current position" (paired with isCurrent below).
+  endDate   DateTime? @map("end_date") @db.Date
+  isCurrent Boolean   @default(false) @map("is_current")
+
+  /// Narrative description of responsibilities/impact — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("experiences")
+}
+
+/// Awards, certifications, notable wins, press mentions, etc.
+model Achievement {
+  id           String    @id @default(cuid())
+  profileId    String    @map("profile_id") @db.Uuid
+  title        String
+  issuer       String?
+  achievedDate DateTime? @map("achieved_date") @db.Date
+
+  /// Detail/context/impact — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("achievements")
+}
+
+/// A discrete skill/competency the user wants reflected in generated content.
+model Skill {
+  id          String  @id @default(cuid())
+  profileId   String  @map("profile_id") @db.Uuid
+  name        String
+  category    String?
+  proficiency String?
+
+  /// Optional short elaboration; app layer may default this to `name` when
+  /// empty so the row is still a usable RAG chunk. Nullable because a bare
+  /// skill name is meaningful on its own (unlike every other facet's
+  /// required `content`, so a future embedding job must fall back to `name`
+  /// for rows where this is null rather than doing a blind `SELECT content`).
+  content String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // No separate @@index([profileId]): the composite unique index below
+  // leads with profile_id, which already covers FK/profile-scoped lookups.
+  @@unique([profileId, name])
+  @@map("skills")
+}
+
+/// Raw samples of the user's own writing (past posts, blog snippets, emails)
+/// used by the RAG pipeline to imitate voice/tone.
+model WritingStyleSample {
+  id        String  @id @default(cuid())
+  profileId String  @map("profile_id") @db.Uuid
+  title     String?
+  /// Freeform label, e.g. "LinkedIn post", "Newsletter", "Email" — no fixed
+  /// taxonomy imposed at this stage.
+  source    String?
+
+  /// The sample text itself — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("writing_style_samples")
+}
+
+/// Personal-branding goals ("grow to 10k followers", "land a staff role").
+model Goal {
+  id         String    @id @default(cuid())
+  profileId  String    @map("profile_id") @db.Uuid
+  title      String
+  /// Freeform, e.g. "Q3 2026", "next 6 months" — no fixed taxonomy imposed.
+  timeframe  String?
+  targetDate DateTime? @map("target_date") @db.Date
+
+  /// Description of the goal / why it matters — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("goals")
+}
+
+/// Topics the user has a stated point of view on, for opinion-led content.
+model Opinion {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id") @db.Uuid
+  topic     String
+
+  /// The stance/explanation itself — the RAG chunk body.
+  content String @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("opinions")
+}

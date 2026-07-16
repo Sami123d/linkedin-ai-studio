@@ -13,12 +13,11 @@ export default async function Home() {
       <h1 className="text-3xl font-semibold tracking-tight">
         LinkedIn AI Studio
       </h1>
-      <p className="max-w-md text-muted-foreground">
-        Foundation is set up. Dashboard and the AI pipeline land in the next
-        milestones.
+      <p className="text-muted-foreground max-w-md">
+        Foundation is set up. The AI pipeline lands in the next milestones.
       </p>
-      <Button render={<Link href={isLoggedIn ? "/profile" : "/login"} />}>
-        {isLoggedIn ? "Go to profile" : "Get started"}
+      <Button render={<Link href={isLoggedIn ? "/dashboard" : "/login"} />}>
+        {isLoggedIn ? "Go to dashboard" : "Get started"}
       </Button>
     </div>
   );

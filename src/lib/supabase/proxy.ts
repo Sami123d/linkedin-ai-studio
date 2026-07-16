@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { clientEnv } from "@/config/env.client";
 
-const PROTECTED_PATHS = ["/profile"];
+const PROTECTED_PATHS = ["/dashboard", "/profile"];
 const AUTH_PATHS = ["/login", "/register"];
 
 export async function updateSession(request: NextRequest) {
@@ -40,9 +40,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isProtected = PROTECTED_PATHS.some((path) =>
-    pathname.startsWith(path),
-  );
+  const isProtected = PROTECTED_PATHS.some((path) => pathname.startsWith(path));
   const isAuthPath = AUTH_PATHS.some((path) => pathname.startsWith(path));
 
   if (!user && isProtected) {
@@ -53,7 +51,7 @@ export async function updateSession(request: NextRequest) {
 
   if (user && isAuthPath) {
     const url = request.nextUrl.clone();
-    url.pathname = "/profile";
+    url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 

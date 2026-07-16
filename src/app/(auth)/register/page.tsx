@@ -42,11 +42,13 @@ export default function RegisterPage() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Create an account</CardTitle>
-        <CardDescription>Start building your LinkedIn presence.</CardDescription>
+        <CardDescription>
+          Start building your LinkedIn presence.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {successMessage ? (
-          <p className="text-sm text-muted-foreground">{successMessage}</p>
+          <p className="text-muted-foreground text-sm">{successMessage}</p>
         ) : (
           <>
             <form
@@ -62,7 +64,7 @@ export default function RegisterPage() {
                   {...register("email")}
                 />
                 {errors.email && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-destructive text-sm">
                     {errors.email.message}
                   </p>
                 )}
@@ -76,7 +78,7 @@ export default function RegisterPage() {
                   {...register("password")}
                 />
                 {errors.password && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-destructive text-sm">
                     {errors.password.message}
                   </p>
                 )}
@@ -90,23 +92,23 @@ export default function RegisterPage() {
                   {...register("confirmPassword")}
                 />
                 {errors.confirmPassword && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-destructive text-sm">
                     {errors.confirmPassword.message}
                   </p>
                 )}
               </div>
               {formError && (
-                <p className="text-sm text-destructive">{formError}</p>
+                <p className="text-destructive text-sm">{formError}</p>
               )}
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Creating account..." : "Create account"}
               </Button>
             </form>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-4 text-center text-sm">
               Already have an account?{" "}
               <Link
                 href="/login"
-                className="font-medium text-foreground underline underline-offset-4"
+                className="text-foreground font-medium underline underline-offset-4"
               >
                 Log in
               </Link>

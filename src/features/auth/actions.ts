@@ -12,9 +12,7 @@ import {
 } from "@/validation/auth";
 
 export type AuthActionResult =
-  | { error: string }
-  | { success: true; message: string }
-  | undefined;
+  { error: string } | { success: true; message: string } | undefined;
 
 export async function login(input: LoginInput): Promise<AuthActionResult> {
   const parsed = loginSchema.safeParse(input);
@@ -29,7 +27,7 @@ export async function login(input: LoginInput): Promise<AuthActionResult> {
     return { error: error.message };
   }
 
-  redirect("/profile");
+  redirect("/dashboard");
 }
 
 export async function register(
@@ -54,7 +52,7 @@ export async function register(
   }
 
   if (data.session) {
-    redirect("/profile");
+    redirect("/dashboard");
   }
 
   return {

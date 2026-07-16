@@ -41,10 +41,7 @@ export default function LoginPage() {
         <CardDescription>Welcome back to LinkedIn AI Studio.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-        >
+        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -54,9 +51,7 @@ export default function LoginPage() {
               {...register("email")}
             />
             {errors.email && (
-              <p className="text-sm text-destructive">
-                {errors.email.message}
-              </p>
+              <p className="text-destructive text-sm">{errors.email.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-1.5">
@@ -68,23 +63,21 @@ export default function LoginPage() {
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-sm text-destructive">
+              <p className="text-destructive text-sm">
                 {errors.password.message}
               </p>
             )}
           </div>
-          {formError && (
-            <p className="text-sm text-destructive">{formError}</p>
-          )}
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Logging in..." : "Log in"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-4 text-center text-sm">
           Don&apos;t have an account?{" "}
           <Link
             href="/register"
-            className="font-medium text-foreground underline underline-offset-4"
+            className="text-foreground font-medium underline underline-offset-4"
           >
             Register
           </Link>

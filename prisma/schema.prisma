@@ -280,6 +280,91 @@ model Trend {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  researchBrief ResearchBrief?
+
   @@index([status, createdAt])
   @@map("trends")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 6: Research Agent
+//
+// One ResearchBrief per Trend, triggered manually once a trend is REVIEWED
+// ("approved"). Retries re-run in place — status flips back to PROCESSING,
+// and the structured fields get overwritten on the next success — rather
+// than creating a second brief per trend; a trend has one canonical
+// research result at a time. ResearchAttempt below is the audit trail that
+// makes retries safe to reason about: every attempt (including ones that
+// failed) keeps its own prompt/response/error, so a retry can't silently
+// erase evidence of why the previous one failed.
+//
+// Generation itself is synchronous within a server action (no queue/worker
+// infra in this stack yet) — see src/features/research/actions.ts.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ResearchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ResearchBrief {
+  id      String @id @default(cuid())
+  trendId String @unique @map("trend_id")
+
+  status   ResearchStatus @default(PENDING)
+  attempts Int            @default(0)
+
+  /// Which AIProvider implementation actually produced the current
+  /// content — recorded per-brief (not just per-attempt) so the UI can
+  /// show provenance without joining to the latest attempt.
+  provider String?
+  model    String?
+
+  executiveSummary    String?  @map("executive_summary") @db.Text
+  keyInsights         String[] @map("key_insights")
+  marketOpportunities String[] @map("market_opportunities")
+  risks               String[]
+  statistics          String[]
+  contentAngles       String[] @map("content_angles")
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  trend       Trend             @relation(fields: [trendId], references: [id], onDelete: Cascade)
+  attemptLogs ResearchAttempt[]
+
+  @@map("research_briefs")
+}
+
+model ResearchAttempt {
+  id            String @id @default(cuid())
+  researchId    String @map("research_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  researchBrief ResearchBrief @relation(fields: [researchId], references: [id], onDelete: Cascade)
+
+  @@index([researchId])
+  @@map("research_attempts")
 }

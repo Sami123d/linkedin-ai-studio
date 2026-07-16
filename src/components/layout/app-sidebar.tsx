@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, LayoutDashboard, LogOut, User } from "lucide-react";
+import { BookOpen, LayoutDashboard, LogOut, TrendingUp, User } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -27,6 +27,7 @@ import { logout } from "@/features/auth/actions";
 const NAV_ITEMS = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Knowledge Base", url: "/knowledge-base", icon: BookOpen },
+  { title: "Trends", url: "/trends", icon: TrendingUp },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

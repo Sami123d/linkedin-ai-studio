@@ -234,3 +234,52 @@ model Opinion {
   @@index([profileId])
   @@map("opinions")
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 5: Trend Collection
+//
+// Deliberately NOT scoped to a Profile: a trending topic ("AI agents are
+// eating SaaS") is the same fact regardless of which user's pipeline later
+// consumes it. Personalizing *which* trends matter to a given user is the
+// Research Agent's job (a later milestone that reads this table and scores
+// relevance against that user's Knowledge Base) — Trend Collection's only
+// job is capturing raw candidates. Keeping it unscoped now avoids having to
+// reshape this table (or duplicate rows per user) once that milestone
+// lands.
+//
+// Ingestion: rows arrive via POST /api/webhooks/trends, called by an n8n
+// workflow the user runs externally (whatever scraping/API source they
+// wire up there — X, LinkedIn, Google Trends, RSS...). That route is the
+// only writer of this table other than the status-update actions below.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum TrendStatus {
+  NEW
+  REVIEWED
+  DISMISSED
+}
+
+model Trend {
+  id     String      @id @default(cuid())
+  topic  String
+  /// Short summary/why-it's-trending blurb from the source, if provided.
+  summary String? @db.Text
+  sourceName String? @map("source_name")
+  sourceUrl  String? @map("source_url")
+  /// Free-form relevance/virality score from whatever produced this trend
+  /// (n8n's scraper, an API's own ranking, etc.) — no fixed scale imposed,
+  /// since the source isn't fixed either.
+  score Float?
+  /// When the source says this trend appeared/was published, distinct from
+  /// `createdAt` (when *this app* ingested it) — the two can differ by
+  /// hours/days depending on n8n's run cadence.
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  status TrendStatus @default(NEW)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status, createdAt])
+  @@map("trends")
+}

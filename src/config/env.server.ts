@@ -22,6 +22,11 @@ const schema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined)),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  /// Fixed at 768 dimensions to match the `vector(768)` column on
+  /// KnowledgeChunk (see the Milestone 7 migration) — changing this model
+  /// to one with a different native dimensionality requires a schema
+  /// migration, not just an env change.
+  GEMINI_EMBEDDING_MODEL: z.string().default("gemini-embedding-001"),
   OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().default("llama3.1"),
 });
@@ -33,6 +38,7 @@ export const serverEnv = schema.parse({
   AI_PROVIDER: process.env.AI_PROVIDER,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  GEMINI_EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL,
   OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
   OLLAMA_MODEL: process.env.OLLAMA_MODEL,
 });

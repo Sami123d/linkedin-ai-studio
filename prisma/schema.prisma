@@ -34,10 +34,16 @@ datasource db {
 // the table owner (or BYPASSRLS) — see the SQL file for the load-bearing
 // detail this implies for the signup trigger too.
 //
-// pgvector: intentionally absent. Every facet below carries a canonical
-// `content` text column — the plain-text body a later embedding job will
-// chunk/embed — so adding vector columns later is an additive
-// `ALTER TABLE ... ADD COLUMN embedding vector(n)` per table, not a reshape.
+// pgvector (Milestone 7): rather than an additive `embedding vector(n)`
+// column per facet table as originally anticipated here, embeddings live in
+// a separate unified `KnowledgeChunk` table (see below) keyed back to
+// whichever facet row produced each chunk. Retrieval needs one similarity
+// query across every facet at once ("top-k most relevant KB content
+// regardless of type"); splitting embeddings across 8 tables would mean 8
+// separate similarity searches merged in application code every retrieval
+// call, for no benefit since Prisma has no native vector type either way
+// (it's `Unsupported("vector(n)")` — raw SQL — regardless of which table
+// it's on).
 // ─────────────────────────────────────────────────────────────────────────
 
 model Profile {
@@ -367,4 +373,57 @@ model ResearchAttempt {
 
   @@index([researchId])
   @@map("research_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 7: RAG (pgvector)
+//
+// Unlike Trend/ResearchBrief, KnowledgeChunk IS scoped to a Profile —
+// retrieval must never leak one user's Knowledge Base into another's
+// generation context.
+//
+// Populated by a manual "Sync Knowledge Base" action (src/features/rag/
+// sync.ts), not automatically on every facet edit — that would require
+// hooking all 8 existing facet server actions from Milestone 4, which is
+// more coupling than this milestone needs. `sourceType` + `sourceId`
+// together identify which facet row a chunk came from, so a resync can
+// find-and-replace it; there's no real foreign key here because the source
+// varies across 8 different tables.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum KnowledgeSourceType {
+  RESUME
+  PROJECT
+  EXPERIENCE
+  ACHIEVEMENT
+  SKILL
+  WRITING_STYLE_SAMPLE
+  GOAL
+  OPINION
+}
+
+model KnowledgeChunk {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id") @db.Uuid
+
+  sourceType KnowledgeSourceType @map("source_type")
+  sourceId   String              @map("source_id")
+
+  content String @db.Text
+  /// Prisma has no native vector type — Unsupported() excludes this column
+  /// from Prisma's query builder entirely; every read/write to it goes
+  /// through raw SQL (see src/features/rag/sync.ts and retrieve.ts). 768
+  /// matches GEMINI_EMBEDDING_MODEL's configured outputDimensionality
+  /// (gemini-embedding-001 supports 768/1536/3072 — verified against the
+  /// live API, not assumed, since Gemini's model lineup moves fast).
+  embedding Unsupported("vector(768)")
+
+  embeddingModel String @map("embedding_model")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([sourceType, sourceId])
+  @@index([profileId])
+  @@map("knowledge_chunks")
 }

@@ -1,4 +1,5 @@
 import { FacetManager, type FacetItem } from "@/components/knowledge-base/facet-manager";
+import { RagSyncPanel } from "@/components/knowledge-base/rag-sync-panel";
 import { ResumeManager } from "@/components/knowledge-base/resume-manager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -32,6 +33,7 @@ import {
   updateProject,
 } from "@/features/knowledge-base/projects/actions";
 import { getResume } from "@/features/knowledge-base/resume/actions";
+import { getKnowledgeChunkCount } from "@/features/rag/actions";
 import {
   createSkill,
   deleteSkill,
@@ -63,6 +65,7 @@ export default async function KnowledgeBasePage() {
     writingSamples,
     goals,
     opinions,
+    chunkCount,
   ] = await Promise.all([
     getResume(),
     listProjects(),
@@ -72,6 +75,7 @@ export default async function KnowledgeBasePage() {
     listWritingSamples(),
     listGoals(),
     listOpinions(),
+    getKnowledgeChunkCount(),
   ]);
 
   const projectItems: FacetItem[] = projects.map((p) => ({
@@ -161,6 +165,7 @@ export default async function KnowledgeBasePage() {
           <TabsTrigger value="writing-samples">Writing samples</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
           <TabsTrigger value="opinions">Opinions</TabsTrigger>
+          <TabsTrigger value="rag-sync">RAG Sync</TabsTrigger>
         </TabsList>
 
         <TabsContent value="resume" className="mt-4">
@@ -340,6 +345,10 @@ export default async function KnowledgeBasePage() {
             updateAction={updateOpinion}
             deleteAction={deleteOpinion}
           />
+        </TabsContent>
+
+        <TabsContent value="rag-sync" className="mt-4">
+          <RagSyncPanel initialChunkCount={chunkCount} />
         </TabsContent>
       </Tabs>
     </div>

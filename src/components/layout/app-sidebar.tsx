@@ -2,7 +2,9 @@
 
 import {
   BookOpen,
+  Calendar,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   ImageIcon,
   LayoutDashboard,
@@ -44,6 +46,8 @@ const NAV_ITEMS = [
   { title: "Writing", url: "/writing", icon: PenLine },
   { title: "Review", url: "/review", icon: CheckCircle2 },
   { title: "Images", url: "/images", icon: ImageIcon },
+  { title: "Approval", url: "/approval", icon: ClipboardCheck },
+  { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

@@ -557,6 +557,7 @@ model Draft {
   attemptLogs DraftAttempt[]
   qualityReview QualityReview?
   imageAsset  ImageAsset?
+  scheduledPost ScheduledPost?
 
   @@map("drafts")
 }
@@ -741,4 +742,40 @@ model ImageAttempt {
 
   @@index([imageId])
   @@map("image_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 12: Content Calendar + Approval UI
+//
+// 1:1 with Draft — same ownership-flows-through-the-chain reasoning as
+// QualityReview/ImageAsset. No AI here, so no attempt-log table this time:
+// this is a plain human decision (approve/reject + pick a date), not a
+// generation job. `publishedAt` is set by a later Scheduler milestone, not
+// this one — it exists now so that milestone is an additive UPDATE, not a
+// reshape.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ScheduledPost {
+  id      String @id @default(cuid())
+  draftId String @unique @map("draft_id")
+
+  approvalStatus  ApprovalStatus @default(PENDING) @map("approval_status")
+  scheduledFor    DateTime?      @map("scheduled_for") @db.Timestamptz(6)
+  rejectionReason String?        @map("rejection_reason") @db.Text
+
+  approvedAt  DateTime? @map("approved_at") @db.Timestamptz(6)
+  publishedAt DateTime? @map("published_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@map("scheduled_posts")
 }

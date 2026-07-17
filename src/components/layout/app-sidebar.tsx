@@ -4,6 +4,7 @@ import {
   BookOpen,
   CheckCircle2,
   ClipboardList,
+  ImageIcon,
   LayoutDashboard,
   LogOut,
   Microscope,
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   { title: "Planning", url: "/planning", icon: ClipboardList },
   { title: "Writing", url: "/writing", icon: PenLine },
   { title: "Review", url: "/review", icon: CheckCircle2 },
+  { title: "Images", url: "/images", icon: ImageIcon },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

@@ -556,6 +556,7 @@ model Draft {
   contentPlan ContentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
   attemptLogs DraftAttempt[]
   qualityReview QualityReview?
+  imageAsset  ImageAsset?
 
   @@map("drafts")
 }
@@ -669,4 +670,75 @@ model ReviewAttempt {
 
   @@index([reviewId])
   @@map("review_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 11: Image Generation
+//
+// 1:1 with Draft — same ownership-flows-through-the-chain reasoning as
+// QualityReview. No AI-generation audit fields (prompt/tokens) since the
+// real provider (Unsplash) is search-based, not generative — ImageAttempt
+// tracks query/result/error instead. IMAGE_PROVIDER=gemini is a scaffold
+// for later (needs a billing-enabled Google Cloud project — verified live
+// against the API that the free tier for image models is 0, unlike the
+// text/embedding models used elsewhere in this app).
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ImageStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model ImageAsset {
+  id      String @id @default(cuid())
+  draftId String @unique @map("draft_id")
+
+  status   ImageStatus @default(PENDING)
+  attempts Int         @default(0)
+
+  provider String?
+  query    String? @db.Text
+  url      String? @db.Text
+  thumbUrl String? @map("thumb_url") @db.Text
+
+  /// Unsplash's API guidelines require attributing the photographer with a
+  /// link back to their profile and to Unsplash — not optional politeness.
+  attributionName String? @map("attribution_name")
+  attributionUrl  String? @map("attribution_url") @db.Text
+  sourceUrl       String? @map("source_url") @db.Text
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft       Draft          @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  attemptLogs ImageAttempt[]
+
+  @@map("image_assets")
+}
+
+model ImageAttempt {
+  id            String @id @default(cuid())
+  imageId       String @map("image_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider  String
+  query     String  @db.Text
+  resultUrl String? @map("result_url") @db.Text
+  succeeded Boolean
+
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  image ImageAsset @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([imageId])
+  @@map("image_attempts")
 }

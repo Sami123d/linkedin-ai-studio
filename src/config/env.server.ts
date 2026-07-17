@@ -29,6 +29,16 @@ const schema = z.object({
   GEMINI_EMBEDDING_MODEL: z.string().default("gemini-embedding-001"),
   OLLAMA_BASE_URL: z.url().default("http://localhost:11434"),
   OLLAMA_MODEL: z.string().default("llama3.1"),
+  /// Which ImageProvider implementation src/ai/providers/image/index.ts
+  /// hands back. "gemini" is a billing-gated scaffold (verified live: the
+  /// free tier for Gemini's image models is 0 — see gemini-image.ts) until
+  /// the user enables billing; "unsplash" (search, not generation) is the
+  /// real default for now.
+  IMAGE_PROVIDER: z.enum(["unsplash", "gemini"]).default("unsplash"),
+  UNSPLASH_ACCESS_KEY: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
 });
 
 export const serverEnv = schema.parse({
@@ -41,4 +51,6 @@ export const serverEnv = schema.parse({
   GEMINI_EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL,
   OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
   OLLAMA_MODEL: process.env.OLLAMA_MODEL,
+  IMAGE_PROVIDER: process.env.IMAGE_PROVIDER,
+  UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
 });

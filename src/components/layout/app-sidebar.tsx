@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  ClipboardList,
   LayoutDashboard,
   LogOut,
   Microscope,
@@ -36,6 +37,7 @@ const NAV_ITEMS = [
   { title: "Knowledge Base", url: "/knowledge-base", icon: BookOpen },
   { title: "Trends", url: "/trends", icon: TrendingUp },
   { title: "Research", url: "/research", icon: Microscope },
+  { title: "Planning", url: "/planning", icon: ClipboardList },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

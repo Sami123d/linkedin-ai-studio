@@ -344,6 +344,7 @@ model ResearchBrief {
 
   trend       Trend             @relation(fields: [trendId], references: [id], onDelete: Cascade)
   attemptLogs ResearchAttempt[]
+  contentPlans ContentPlan[]
 
   @@map("research_briefs")
 }
@@ -426,4 +427,89 @@ model KnowledgeChunk {
   @@unique([sourceType, sourceId])
   @@index([profileId])
   @@map("knowledge_chunks")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 8: Planning Agent
+//
+// Unlike ResearchBrief (unscoped — a trend's research is the same fact
+// for everyone), a ContentPlan IS scoped to a Profile: two users could plan
+// two different posts off the same research, using their own Knowledge
+// Base/voice/goals. Hence unique on (researchId, profileId), not researchId
+// alone. Same retry-in-place + audit-log pattern as Research/ResearchAttempt
+// (Milestone 6) — see that block's comment for the full reasoning.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum PlanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ContentFormat {
+  SINGLE_POST
+  CAROUSEL
+  ARTICLE
+}
+
+model ContentPlan {
+  id         String @id @default(cuid())
+  researchId String @map("research_id")
+  profileId  String @map("profile_id") @db.Uuid
+
+  status   PlanStatus @default(PENDING)
+  attempts Int        @default(0)
+
+  provider String?
+  model    String?
+
+  format        ContentFormat?
+  selectedAngle String?        @map("selected_angle") @db.Text
+  hook          String?        @db.Text
+  keyMessage    String?        @map("key_message") @db.Text
+  outline       String[]
+  toneGuidance  String?        @map("tone_guidance") @db.Text
+  callToAction  String?        @map("call_to_action") @db.Text
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  research    ResearchBrief @relation(fields: [researchId], references: [id], onDelete: Cascade)
+  attemptLogs PlanAttempt[]
+
+  @@unique([researchId, profileId])
+  @@index([profileId])
+  @@map("content_plans")
+}
+
+model PlanAttempt {
+  id            String @id @default(cuid())
+  planId        String @map("plan_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  plan ContentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("plan_attempts")
 }

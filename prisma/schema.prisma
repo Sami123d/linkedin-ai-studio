@@ -481,6 +481,7 @@ model ContentPlan {
 
   research    ResearchBrief @relation(fields: [researchId], references: [id], onDelete: Cascade)
   attemptLogs PlanAttempt[]
+  draft       Draft?
 
   @@unique([researchId, profileId])
   @@index([profileId])
@@ -512,4 +513,75 @@ model PlanAttempt {
 
   @@index([planId])
   @@map("plan_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 9: Writing Agent
+//
+// One Draft per ContentPlan (1:1) — ownership flows through the plan
+// (already scoped to a profile), so Draft itself needs no profileId. Same
+// retry-in-place + audit-log pattern as Research/Planning.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DraftStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Draft {
+  id     String @id @default(cuid())
+  planId String @unique @map("plan_id")
+
+  status   DraftStatus @default(PENDING)
+  attempts Int         @default(0)
+
+  provider String?
+  model    String?
+
+  /// Full post body for SINGLE_POST/ARTICLE. Empty for CAROUSEL, where the
+  /// content lives in `slides` instead — one entry per slide.
+  content  String?  @db.Text
+  slides   String[]
+  hashtags String[]
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  contentPlan ContentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  attemptLogs DraftAttempt[]
+
+  @@map("drafts")
+}
+
+model DraftAttempt {
+  id            String @id @default(cuid())
+  draftId       String @map("draft_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@index([draftId])
+  @@map("draft_attempts")
 }

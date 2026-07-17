@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Microscope,
+  PenLine,
   TrendingUp,
   User,
 } from "lucide-react";
@@ -38,6 +39,7 @@ const NAV_ITEMS = [
   { title: "Trends", url: "/trends", icon: TrendingUp },
   { title: "Research", url: "/research", icon: Microscope },
   { title: "Planning", url: "/planning", icon: ClipboardList },
+  { title: "Writing", url: "/writing", icon: PenLine },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

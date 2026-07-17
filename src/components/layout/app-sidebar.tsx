@@ -2,6 +2,7 @@
 
 import {
   BookOpen,
+  CheckCircle2,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { title: "Research", url: "/research", icon: Microscope },
   { title: "Planning", url: "/planning", icon: ClipboardList },
   { title: "Writing", url: "/writing", icon: PenLine },
+  { title: "Review", url: "/review", icon: CheckCircle2 },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

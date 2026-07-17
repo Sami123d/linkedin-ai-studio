@@ -555,6 +555,7 @@ model Draft {
 
   contentPlan ContentPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
   attemptLogs DraftAttempt[]
+  qualityReview QualityReview?
 
   @@map("drafts")
 }
@@ -584,4 +585,88 @@ model DraftAttempt {
 
   @@index([draftId])
   @@map("draft_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 10: Quality Review Agent
+//
+// 1:1 with Draft — ownership flows through Draft -> ContentPlan -> profile,
+// no separate profileId needed. Same retry-in-place + audit-log pattern as
+// Research/Planning/Writing. `overallScore` is computed in application code
+// as the average of the 5 dimension scores, not asked of the model
+// directly — keeps it consistent with the dimensions rather than letting
+// the model pick an arbitrary number that might not match them.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum ReviewStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ReviewVerdict {
+  APPROVED
+  NEEDS_REVISION
+}
+
+model QualityReview {
+  id      String @id @default(cuid())
+  draftId String @unique @map("draft_id")
+
+  status   ReviewStatus @default(PENDING)
+  attempts Int          @default(0)
+
+  provider String?
+  model    String?
+
+  verdict         ReviewVerdict?
+  overallScore    Int?           @map("overall_score")
+  hookScore       Int?           @map("hook_score")
+  clarityScore    Int?           @map("clarity_score")
+  voiceMatchScore Int?           @map("voice_match_score")
+  valueScore      Int?           @map("value_score")
+  ctaScore        Int?           @map("cta_score")
+
+  strengths String[]
+  feedback  String[]
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft       Draft           @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  attemptLogs ReviewAttempt[]
+
+  @@map("quality_reviews")
+}
+
+model ReviewAttempt {
+  id            String @id @default(cuid())
+  reviewId      String @map("review_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  review QualityReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@map("review_attempts")
 }

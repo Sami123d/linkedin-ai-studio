@@ -1,25 +1,12 @@
-import { timingSafeEqual } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
 import { serverEnv } from "@/config/env.server";
 import { prisma } from "@/db/prisma";
+import { checkWebhookSecret } from "@/lib/webhook-auth";
 import { trendWebhookBodySchema } from "@/validation/trends";
 
-/// Constant-time secret comparison — a naive `===` leaks timing
-/// information proportional to how many leading characters match, which
-/// is exactly the kind of oracle an unauthenticated public endpoint like
-/// this one shouldn't offer.
-function secretsMatch(provided: string, expected: string): boolean {
-  const providedBuf = Buffer.from(provided);
-  const expectedBuf = Buffer.from(expected);
-  if (providedBuf.length !== expectedBuf.length) return false;
-  return timingSafeEqual(providedBuf, expectedBuf);
-}
-
 export async function POST(request: Request) {
-  const providedSecret = request.headers.get("x-webhook-secret") ?? "";
-  if (!secretsMatch(providedSecret, serverEnv.TREND_WEBHOOK_SECRET)) {
+  if (!checkWebhookSecret(request, serverEnv.TREND_WEBHOOK_SECRET)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

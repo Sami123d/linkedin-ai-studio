@@ -159,19 +159,43 @@ export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
           <div className="grid gap-2">
             {posts.map((post) => (
               <Card key={post.id}>
-                <CardContent className="flex items-center justify-between py-3">
-                  <span className="text-sm font-medium">
-                    {post.draft.contentPlan.research.trend.topic}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {post.draft.contentPlan.format}
-                    </Badge>
-                    <span className="text-muted-foreground text-sm">
-                      {post.scheduledFor &&
-                        new Date(post.scheduledFor).toLocaleString()}
+                <CardContent className="flex flex-col gap-1 py-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">
+                      {post.draft.contentPlan.research.trend.topic}
                     </span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">
+                        {post.draft.contentPlan.format}
+                      </Badge>
+                      {post.publishedAt ? (
+                        <Badge>Published</Badge>
+                      ) : post.publishError ? (
+                        <Badge variant="destructive">Publish failed</Badge>
+                      ) : (
+                        <Badge variant="secondary">Awaiting publish</Badge>
+                      )}
+                      <span className="text-muted-foreground text-sm">
+                        {post.scheduledFor &&
+                          new Date(post.scheduledFor).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
+                  {post.publishedAt && post.publishedUrl && (
+                    <a
+                      href={post.publishedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-muted-foreground text-xs underline underline-offset-2"
+                    >
+                      View live post
+                    </a>
+                  )}
+                  {post.publishError && !post.publishedAt && (
+                    <p className="text-destructive text-xs">
+                      {post.publishError}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ))}

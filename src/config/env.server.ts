@@ -39,6 +39,12 @@ const schema = z.object({
     .string()
     .optional()
     .transform((value) => (value ? value : undefined)),
+  /// Shared secret n8n's Schedule Trigger workflow sends on every call to
+  /// GET /api/scheduler/due and POST /api/scheduler/publish — same
+  /// reasoning as TREND_WEBHOOK_SECRET (these endpoints are unauthenticated
+  /// by session). A separate secret from the trends one since it's a
+  /// different consumer/purpose, not because the security model differs.
+  SCHEDULER_WEBHOOK_SECRET: z.string().min(16),
 });
 
 export const serverEnv = schema.parse({
@@ -53,4 +59,5 @@ export const serverEnv = schema.parse({
   OLLAMA_MODEL: process.env.OLLAMA_MODEL,
   IMAGE_PROVIDER: process.env.IMAGE_PROVIDER,
   UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
+  SCHEDULER_WEBHOOK_SECRET: process.env.SCHEDULER_WEBHOOK_SECRET,
 });

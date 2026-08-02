@@ -9,6 +9,7 @@ import {
   ClipboardList,
   ImageIcon,
   LayoutDashboard,
+  Lightbulb,
   LogOut,
   Microscope,
   PenLine,
@@ -50,6 +51,7 @@ const NAV_ITEMS = [
   { title: "Approval", url: "/approval", icon: ClipboardCheck },
   { title: "Calendar", url: "/calendar", icon: Calendar },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
+  { title: "Learning", url: "/learning", icon: Lightbulb },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

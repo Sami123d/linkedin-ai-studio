@@ -823,3 +823,79 @@ model AnalyticsSnapshot {
   @@index([scheduledPostId, capturedAt])
   @@map("analytics_snapshots")
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 15: Learning Agent
+//
+// Unlike Research/Planning/Writing/Review (1:1 with a single upstream
+// row), a LearningInsight is an aggregate analysis over ALL of a profile's
+// published posts at once — there's no single upstream row to be 1:1 with.
+// Each "run" is a new row (same row-per-thing pattern as Trend/
+// ResearchBrief), not an upsert-in-place, so re-running as more posts get
+// published keeps prior reports around for comparison. Retry re-runs the
+// same row in place (attempts++); generating fresh insight after new data
+// exists creates a new row instead.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum LearningStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model LearningInsight {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id") @db.Uuid
+
+  status   LearningStatus @default(PENDING)
+  attempts Int            @default(0)
+
+  provider String?
+  model    String?
+
+  summary                 String?  @db.Text
+  topPerformingPatterns   String[] @map("top_performing_patterns")
+  underperformingPatterns String[] @map("underperforming_patterns")
+  recommendations         String[]
+  postsAnalyzed           Int      @default(0) @map("posts_analyzed")
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  attemptLogs LearningAttempt[]
+
+  @@index([profileId, createdAt])
+  @@map("learning_insights")
+}
+
+model LearningAttempt {
+  id            String @id @default(cuid())
+  insightId     String @map("insight_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  insight LearningInsight @relation(fields: [insightId], references: [id], onDelete: Cascade)
+
+  @@index([insightId])
+  @@map("learning_attempts")
+}

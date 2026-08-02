@@ -1,0 +1,164 @@
+{
+  "name": "LinkedIn AI Studio - Publisher Scheduler",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "*/15 * * * *" }] } },
+      "id": "schedule-trigger-2",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.APP_BASE_URL }}/api/scheduler/due",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [{ "name": "limit", "value": "20" }] },
+        "genericAuthType": "httpHeaderAuth",
+        "authentication": "genericCredentialType",
+        "options": {}
+      },
+      "id": "http-get-due",
+      "name": "GET Due Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "Scheduler Webhook Secret" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET /api/scheduler/due returns { posts: [...] } as ONE item (a JSON\n// object, not a bare array) -- split it into one n8n item per due post so\n// everything downstream runs once per post.\nconst posts = ($input.first().json && $input.first().json.posts) || [];\nreturn posts.map((p) => ({ json: p }));"
+      },
+      "id": "code-split-due",
+      "name": "Split Due Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Builds the final LinkedIn post text from whichever the Writing Agent\n// produced: a single body (SINGLE_POST/ARTICLE) or per-slide bullets\n// (CAROUSEL -- true multi-image carousel posting isn't attempted here, see\n// the workflow doc's \"CAROUSEL handling\" note; slides are joined into one\n// numbered text post instead).\nreturn $input.all().map((item) => {\n  const p = item.json;\n  let text = p.content || \"\";\n\n  if (!text && Array.isArray(p.slides) && p.slides.length > 0) {\n    text = p.slides.map((s, i) => `${i + 1}. ${s}`).join(\"\\n\\n\");\n  }\n\n  if (Array.isArray(p.hashtags) && p.hashtags.length > 0) {\n    text += \"\\n\\n\" + p.hashtags.map((h) => `#${h}`).join(\" \");\n  }\n\n  return {\n    json: {\n      ...p,\n      postText: text,\n      hasImage: Boolean(p.imageUrl)\n    }\n  };\n});"
+      },
+      "id": "code-build-text",
+      "name": "Build Post Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "has-image-cond-1", "leftValue": "={{ $json.hasImage }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-image",
+      "name": "Has Image?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 300]
+    },
+    {
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "text": "={{ $json.postText }}",
+        "shareMediaCategory": "IMAGE",
+        "additionalFields": {},
+        "media": { "values": [{ "url": "={{ $json.imageUrl }}" }] }
+      },
+      "id": "linkedin-publish-image",
+      "name": "Publish Post (With Image)",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [1100, 200],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "linkedInOAuth2Api": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "LinkedIn account" }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "post",
+        "operation": "create",
+        "text": "={{ $json.postText }}",
+        "shareMediaCategory": "NONE",
+        "additionalFields": {}
+      },
+      "id": "linkedin-publish-text",
+      "name": "Publish Post (Text Only)",
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [1100, 420],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "linkedInOAuth2Api": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "LinkedIn account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Both LinkedIn nodes converge here. `continueOnFail: true` on those nodes\n// means a failed publish attempt still produces an item here (with an\n// `error` field) instead of crashing the workflow -- this node decides\n// success vs failure and builds the exact shape POST /api/scheduler/publish\n// expects. `scheduledPostId` is recovered via pairedItem back to \"Build Post\n// Text\" rather than assumed to survive through the LinkedIn node, since\n// action nodes commonly replace `.json` with the raw API response.\n//\n// NOTE: `item.json.id` is this workflow's one live-unverified assumption --\n// confirm the actual field holding the created post's identifier by\n// inspecting a real successful execution's output in your n8n instance, and\n// adjust the fallbacks below if it differs (see the workflow doc).\nconst originItems = $('Build Post Text').all();\n\nreturn $input.all().map((item) => {\n  const originIdx = item.pairedItem ? item.pairedItem.item : undefined;\n  const original = originIdx !== undefined ? originItems[originIdx].json : {};\n  const scheduledPostId = original.scheduledPostId;\n\n  const hasError = Boolean(item.json.error) || Boolean(item.json.errorMessage);\n  if (hasError) {\n    const errorMessage =\n      (item.json.error && (item.json.error.message || String(item.json.error))) ||\n      item.json.errorMessage ||\n      \"Unknown LinkedIn publish error\";\n    return { json: { scheduledPostId, success: false, error: errorMessage } };\n  }\n\n  const postId = item.json.id || item.json.postId || item.json.urn || null;\n  const publishedUrl = postId ? `https://www.linkedin.com/feed/update/${postId}` : undefined;\n\n  return { json: { scheduledPostId, success: true, publishedUrl } };\n});"
+      },
+      "id": "code-build-callback",
+      "name": "Build Callback Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/scheduler/publish",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "genericAuthType": "httpHeaderAuth",
+        "authentication": "genericCredentialType",
+        "options": {}
+      },
+      "id": "http-post-result",
+      "name": "POST Publish Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "Scheduler Webhook Secret" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": { "main": [[{ "node": "GET Due Posts", "type": "main", "index": 0 }]] },
+    "GET Due Posts": { "main": [[{ "node": "Split Due Posts", "type": "main", "index": 0 }]] },
+    "Split Due Posts": { "main": [[{ "node": "Build Post Text", "type": "main", "index": 0 }]] },
+    "Build Post Text": { "main": [[{ "node": "Has Image?", "type": "main", "index": 0 }]] },
+    "Has Image?": { "main": [
+      [{ "node": "Publish Post (With Image)", "type": "main", "index": 0 }],
+      [{ "node": "Publish Post (Text Only)", "type": "main", "index": 0 }]
+    ] },
+    "Publish Post (With Image)": { "main": [[{ "node": "Build Callback Payload", "type": "main", "index": 0 }]] },
+    "Publish Post (Text Only)": { "main": [[{ "node": "Build Callback Payload", "type": "main", "index": 0 }]] },
+    "Build Callback Payload": { "main": [[{ "node": "POST Publish Result", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

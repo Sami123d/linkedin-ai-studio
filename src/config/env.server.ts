@@ -45,6 +45,11 @@ const schema = z.object({
   /// by session). A separate secret from the trends one since it's a
   /// different consumer/purpose, not because the security model differs.
   SCHEDULER_WEBHOOK_SECRET: z.string().min(16),
+  /// Shared secret n8n's analytics workflow sends as the `x-webhook-secret`
+  /// header on both GET /api/analytics/published-posts and POST
+  /// /api/webhooks/analytics. Separate secret from the trend/scheduler ones
+  /// (different consumer/purpose), same reasoning throughout this file.
+  ANALYTICS_WEBHOOK_SECRET: z.string().min(16),
 });
 
 export const serverEnv = schema.parse({
@@ -60,4 +65,5 @@ export const serverEnv = schema.parse({
   IMAGE_PROVIDER: process.env.IMAGE_PROVIDER,
   UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
   SCHEDULER_WEBHOOK_SECRET: process.env.SCHEDULER_WEBHOOK_SECRET,
+  ANALYTICS_WEBHOOK_SECRET: process.env.ANALYTICS_WEBHOOK_SECRET,
 });

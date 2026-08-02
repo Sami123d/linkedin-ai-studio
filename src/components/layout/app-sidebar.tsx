@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BarChart3,
   BookOpen,
   Calendar,
   CheckCircle2,
@@ -48,6 +49,7 @@ const NAV_ITEMS = [
   { title: "Images", url: "/images", icon: ImageIcon },
   { title: "Approval", url: "/approval", icon: ClipboardCheck },
   { title: "Calendar", url: "/calendar", icon: Calendar },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

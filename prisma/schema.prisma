@@ -789,6 +789,37 @@ model ScheduledPost {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   draft Draft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  analyticsSnapshots AnalyticsSnapshot[]
 
   @@map("scheduled_posts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Milestone 14: Analytics
+//
+// Same delegation pattern as Trend Collection (M5) and the Scheduler
+// (M13): LinkedIn engagement data isn't something this app fetches
+// directly — n8n checks LinkedIn (using the same integration it already
+// has for publishing) and pushes snapshots in via a webhook. Time-series,
+// not a single mutable row per post, so a later Learning Agent milestone
+// can see the growth curve, not just a current count.
+// ─────────────────────────────────────────────────────────────────────────
+
+model AnalyticsSnapshot {
+  id              String   @id @default(cuid())
+  scheduledPostId String   @map("scheduled_post_id")
+  capturedAt      DateTime @map("captured_at") @db.Timestamptz(6)
+
+  impressions Int?
+  likes       Int?
+  comments    Int?
+  shares      Int?
+  clicks      Int?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  scheduledPost ScheduledPost @relation(fields: [scheduledPostId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledPostId, capturedAt])
+  @@map("analytics_snapshots")
 }

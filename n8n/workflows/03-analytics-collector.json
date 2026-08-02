@@ -1,0 +1,151 @@
+{
+  "name": "LinkedIn AI Studio - Analytics Collector",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 8 * * *" }] } },
+      "id": "schedule-trigger-3",
+      "name": "Daily at 8am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.APP_BASE_URL }}/api/analytics/published-posts",
+        "genericAuthType": "httpHeaderAuth",
+        "authentication": "genericCredentialType",
+        "options": {}
+      },
+      "id": "http-get-published",
+      "name": "GET Published Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "Analytics Webhook Secret" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// GET /api/analytics/published-posts returns { posts: [...] } as ONE\n// item -- split it into one n8n item per published post.\nconst posts = ($input.first().json && $input.first().json.posts) || [];\nreturn posts.map((p) => ({ json: p }));"
+      },
+      "id": "code-split-published",
+      "name": "Split Published Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// publishedUrl looks like https://www.linkedin.com/feed/update/urn:li:share:12345\n// -- pull the raw urn:li:... token back out, since LinkedIn's Social\n// Actions API needs it (URL-encoded) as a path parameter, not the full URL.\nreturn $input.all().map((item) => {\n  const p = item.json;\n  const match = (p.publishedUrl || \"\").match(/urn:li:[a-zA-Z]+:[a-zA-Z0-9]+/);\n  const urn = match ? match[0] : null;\n  return { json: { ...p, urn, encodedUrn: urn ? encodeURIComponent(urn) : null } };\n});"
+      },
+      "id": "code-extract-urn",
+      "name": "Extract LinkedIn URN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.linkedin.com/v2/socialActions/{{ $json.encodedUrn }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-Restli-Protocol-Version", "value": "2.0.0" }] },
+        "options": {}
+      },
+      "id": "http-social-actions",
+      "name": "GET LinkedIn Social Actions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "continueOnFail": true,
+      "credentials": {
+        "linkedInOAuth2Api": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "LinkedIn account" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// LinkedIn's socialActions endpoint gives likes + comments for content\n// you own. It does NOT give impressions or share counts -- those require\n// LinkedIn's Marketing API Partner Program (a separate, approval-gated\n// partnership most developer apps don't have), so this workflow\n// deliberately leaves \"impressions\"/\"shares\" out of the payload rather\n// than fabricate numbers -- the app's schema already treats every metric\n// field as optional for exactly this reason.\n//\n// Posts that failed the Social Actions call (continueOnFail on the\n// previous node) are filtered out here rather than sent with fake zeros --\n// no data this run is better than wrong data.\nconst originItems = $('Extract LinkedIn URN').all();\n\nconst results = $input.all()\n  .filter((item) => !item.json.error && !item.json.errorMessage)\n  .map((item) => {\n    const originIdx = item.pairedItem ? item.pairedItem.item : undefined;\n    const original = originIdx !== undefined ? originItems[originIdx].json : {};\n\n    const likes = item.json.likesSummary ? item.json.likesSummary.totalLikes : null;\n    const comments = item.json.commentsSummary\n      ? (item.json.commentsSummary.aggregatedTotalComments ?? item.json.commentsSummary.totalFirstLevelComments ?? null)\n      : null;\n\n    return {\n      scheduledPostId: original.scheduledPostId,\n      capturedAt: new Date().toISOString(),\n      likes,\n      comments\n    };\n  })\n  .filter((r) => Boolean(r.scheduledPostId));\n\nreturn results.map((r) => ({ json: r }));"
+      },
+      "id": "code-normalize-analytics",
+      "name": "Normalize Analytics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const snapshots = $input.all().map((item) => item.json);\nreturn [{ json: { snapshots, count: snapshots.length } }];"
+      },
+      "id": "code-collect-batch",
+      "name": "Collect Batch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            { "id": "has-snapshots-cond-1", "leftValue": "={{ $json.count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-has-snapshots",
+      "name": "Has Snapshots?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1540, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/webhooks/analytics",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.snapshots }}",
+        "genericAuthType": "httpHeaderAuth",
+        "authentication": "genericCredentialType",
+        "options": {}
+      },
+      "id": "http-post-analytics",
+      "name": "POST Analytics to App",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 200],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "httpHeaderAuth": { "id": "PLACEHOLDER_CREDENTIAL_ID", "name": "Analytics Webhook Secret" }
+      }
+    },
+    { "parameters": {}, "id": "noop-no-analytics", "name": "No New Analytics", "type": "n8n-nodes-base.noOp", "typeVersion": 1, "position": [1760, 420] }
+  ],
+  "connections": {
+    "Daily at 8am": { "main": [[{ "node": "GET Published Posts", "type": "main", "index": 0 }]] },
+    "GET Published Posts": { "main": [[{ "node": "Split Published Posts", "type": "main", "index": 0 }]] },
+    "Split Published Posts": { "main": [[{ "node": "Extract LinkedIn URN", "type": "main", "index": 0 }]] },
+    "Extract LinkedIn URN": { "main": [[{ "node": "GET LinkedIn Social Actions", "type": "main", "index": 0 }]] },
+    "GET LinkedIn Social Actions": { "main": [[{ "node": "Normalize Analytics", "type": "main", "index": 0 }]] },
+    "Normalize Analytics": { "main": [[{ "node": "Collect Batch", "type": "main", "index": 0 }]] },
+    "Collect Batch": { "main": [[{ "node": "Has Snapshots?", "type": "main", "index": 0 }]] },
+    "Has Snapshots?": { "main": [
+      [{ "node": "POST Analytics to App", "type": "main", "index": 0 }],
+      [{ "node": "No New Analytics", "type": "main", "index": 0 }]
+    ] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

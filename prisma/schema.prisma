@@ -272,6 +272,10 @@ model Trend {
   summary String? @db.Text
   sourceName String? @map("source_name")
   sourceUrl  String? @map("source_url")
+  /// Free-form label from whatever categorized this trend (e.g. the n8n
+  /// Trend Collector workflow's keyword-matching step) — no fixed enum
+  /// since the taxonomy may evolve with the workflow, not the schema.
+  category String?
   /// Free-form relevance/virality score from whatever produced this trend
   /// (n8n's scraper, an API's own ranking, etc.) — no fixed scale imposed,
   /// since the source isn't fixed either.

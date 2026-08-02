@@ -8,6 +8,9 @@ export const trendPayloadSchema = z.object({
   summary: z.string().trim().max(5000).optional(),
   sourceName: z.string().trim().max(200).optional(),
   sourceUrl: z.union([z.url(), z.literal("")]).optional(),
+  /// Free-form — whatever taxonomy the collecting workflow uses (see
+  /// schema.prisma's Trend.category comment).
+  category: z.string().trim().max(100).optional(),
   score: z.number().optional(),
   /// ISO 8601 string; transformed to a `Date` for Prisma's
   /// `@db.Timestamptz` column.

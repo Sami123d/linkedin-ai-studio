@@ -55,6 +55,9 @@ export function TrendList({ trends }: { trends: Trend[] }) {
                 >
                   {STATUS_LABEL[trend.status]}
                 </Badge>
+                {trend.category && (
+                  <Badge variant="outline">{trend.category}</Badge>
+                )}
               </CardTitle>
               {(trend.sourceName || trend.score !== null) && (
                 <CardDescription>

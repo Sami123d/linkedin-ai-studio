@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       summary: item.summary,
       sourceName: item.sourceName,
       sourceUrl: item.sourceUrl || undefined,
+      category: item.category,
       score: item.score,
       publishedAt: item.publishedAt,
     })),

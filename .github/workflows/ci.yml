@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Placeholder values only: env schemas (src/config/env.*.ts) and
+    # `prisma generate` require these to exist at install/build time.
+    # Nothing in CI connects to a real database or external API.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      TREND_WEBHOOK_SECRET: ci-placeholder-secret-000000
+      SCHEDULER_WEBHOOK_SECRET: ci-placeholder-secret-000000
+      ANALYTICS_WEBHOOK_SECRET: ci-placeholder-secret-000000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

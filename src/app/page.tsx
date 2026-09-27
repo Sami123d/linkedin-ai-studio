@@ -14,7 +14,9 @@ export default async function Home() {
         LinkedIn AI Studio
       </h1>
       <p className="text-muted-foreground max-w-md">
-        Foundation is set up. The AI pipeline lands in the next milestones.
+        Turn trending topics into LinkedIn posts written in your own voice:
+        research, plan, draft, review, approve and schedule, with n8n handling
+        trend collection, publishing and analytics.
       </p>
       <Button render={<Link href={isLoggedIn ? "/dashboard" : "/login"} />}>
         {isLoggedIn ? "Go to dashboard" : "Get started"}

@@ -1,0 +1,40 @@
+name: Trend Collector
+
+# Free replacement for the n8n "01 Trend Collector" workflow: every 6 hours,
+# collect trends from 10 sources and POST them to the deployed app.
+#
+# Repository settings -> Secrets and variables -> Actions:
+#   Secrets:   TREND_WEBHOOK_SECRET  (same value as in Vercel)
+#              PRODUCT_HUNT_TOKEN    (optional, enables the Product Hunt source)
+#   Variables: APP_BASE_URL          (e.g. https://linkedin-ai-studio-alpha.vercel.app)
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: trend-collector
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Collect and send trends
+        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/collect-trends.ts
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          TREND_WEBHOOK_SECRET: ${{ secrets.TREND_WEBHOOK_SECRET }}
+          PRODUCT_HUNT_TOKEN: ${{ secrets.PRODUCT_HUNT_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}

@@ -129,6 +129,18 @@ Every workflow reads `APP_BASE_URL` from the n8n environment and sends its secre
 
 Fetch and POST nodes use `retryOnFail` (3 tries, 5 s apart). A failing source or post doesn't stop the rest of the run.
 
+### Free hosting without n8n: GitHub Actions trend collector
+
+`scripts/collect-trends.ts` is a dependency-free port of the Trend Collector: same 10 sources, scoring, categories, 14-day filter and top-30 cap. `.github/workflows/trend-collector.yml` runs it every 6 hours on GitHub Actions, so the deployed app gets trends with no n8n server to host. The regular trend inserts should also help keep a free Supabase project active, since Supabase pauses free projects after a week without database activity.
+
+Setup, in the repository's **Settings → Secrets and variables → Actions**:
+
+- Secret `TREND_WEBHOOK_SECRET`: the same value as in Vercel.
+- Variable `APP_BASE_URL`: the deployed app URL, e.g. `https://linkedin-ai-studio-alpha.vercel.app`.
+- Optional secret `PRODUCT_HUNT_TOKEN` to enable the Product Hunt source.
+
+Then run it once from the **Actions** tab (**Trend Collector → Run workflow**). To try it locally without sending anything: `node --experimental-strip-types scripts/collect-trends.ts --dry-run` (Node 22). GitHub turns off scheduled workflows after 60 days without commits to the repo; re-enable it from the Actions tab if that happens.
+
 ## Tech stack
 
 - **Framework**: Next.js 16 (App Router, Server Actions, `proxy.ts`), React 19, TypeScript

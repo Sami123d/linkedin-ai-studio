@@ -6,7 +6,7 @@ name: Trend Collector
 # Repository settings -> Secrets and variables -> Actions:
 #   Secrets:   TREND_WEBHOOK_SECRET  (same value as in Vercel)
 #              PRODUCT_HUNT_TOKEN    (optional, enables the Product Hunt source)
-#   Variables: APP_BASE_URL          (e.g. https://linkedin-ai-studio-alpha.vercel.app)
+#   Variables: APP_BASE_URL          (optional, defaults to https://linkedin-ai-studio-alpha.vercel.app)
 
 on:
   schedule:
@@ -34,7 +34,7 @@ jobs:
       - name: Collect and send trends
         run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/collect-trends.ts
         env:
-          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://linkedin-ai-studio-alpha.vercel.app' }}
           TREND_WEBHOOK_SECRET: ${{ secrets.TREND_WEBHOOK_SECRET }}
           PRODUCT_HUNT_TOKEN: ${{ secrets.PRODUCT_HUNT_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}

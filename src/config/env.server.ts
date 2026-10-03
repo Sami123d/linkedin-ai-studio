@@ -22,6 +22,9 @@ const schema = z.object({
     .optional()
     .transform((value) => (value ? value : undefined)),
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  /// Tried when GEMINI_MODEL is overloaded or rate limited (503/429), which
+  /// happens often on the free tier. Set it to an empty string to disable.
+  GEMINI_FALLBACK_MODEL: z.string().default("gemini-flash-lite-latest"),
   /// Fixed at 768 dimensions to match the `vector(768)` column on
   /// KnowledgeChunk (see the Milestone 7 migration) — changing this model
   /// to one with a different native dimensionality requires a schema
@@ -59,6 +62,7 @@ export const serverEnv = schema.parse({
   AI_PROVIDER: process.env.AI_PROVIDER,
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   GEMINI_MODEL: process.env.GEMINI_MODEL,
+  GEMINI_FALLBACK_MODEL: process.env.GEMINI_FALLBACK_MODEL,
   GEMINI_EMBEDDING_MODEL: process.env.GEMINI_EMBEDDING_MODEL,
   OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL,
   OLLAMA_MODEL: process.env.OLLAMA_MODEL,

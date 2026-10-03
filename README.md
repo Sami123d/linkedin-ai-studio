@@ -141,6 +141,15 @@ Setup, in the repository's **Settings → Secrets and variables → Actions**:
 
 Then run it once from the **Actions** tab (**Trend Collector → Run workflow**). To try it locally without sending anything: `node --experimental-strip-types scripts/collect-trends.ts --dry-run` (Node 22). GitHub turns off scheduled workflows after 60 days without commits to the repo; re-enable it from the Actions tab if that happens.
 
+The other two workflows have GitHub Actions ports as well, so n8n is optional end to end:
+
+| Workflow file | Script | Schedule | Secrets |
+|---|---|---|---|
+| `linkedin-publisher.yml` | `scripts/linkedin-publisher.ts` | every 15 min | `SCHEDULER_WEBHOOK_SECRET`, `LINKEDIN_ACCESS_TOKEN`, optional `LINKEDIN_PERSON_URN` |
+| `linkedin-analytics.yml` | `scripts/linkedin-analytics.ts` | daily 08:00 UTC | `ANALYTICS_WEBHOOK_SECRET`, `LINKEDIN_ACCESS_TOKEN` |
+
+The publisher posts through LinkedIn's `ugcPosts` API (uploading the image first when the draft has one), checks the token before it claims any due posts, and reports each result to `/api/scheduler/publish`. Create `LINKEDIN_ACCESS_TOKEN` with LinkedIn's [OAuth token generator](https://www.linkedin.com/developers/tools/oauth/token-generator) for your app, with the `openid`, `profile` and `w_member_social` scopes. These tokens expire after about 60 days; a failed (red) publisher run with a 401 means it is time to generate a new one and update the secret.
+
 ## Tech stack
 
 - **Framework**: Next.js 16 (App Router, Server Actions, `proxy.ts`), React 19, TypeScript

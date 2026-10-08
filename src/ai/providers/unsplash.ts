@@ -23,6 +23,7 @@ type UnsplashSearchResponse = {
 
 export class UnsplashImageProvider implements ImageProvider {
   readonly name = "unsplash";
+  readonly generative = false;
 
   constructor() {
     if (!serverEnv.UNSPLASH_ACCESS_KEY) {

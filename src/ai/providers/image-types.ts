@@ -13,5 +13,9 @@ export type ImageResult = {
 
 export interface ImageProvider {
   readonly name: string;
+  /// Generative providers get an AI-written visual scene as their query;
+  /// search providers (Unsplash) get the short post topic, which searches
+  /// far better than a long scene description.
+  readonly generative: boolean;
   getImage(query: string): Promise<ImageResult>;
 }

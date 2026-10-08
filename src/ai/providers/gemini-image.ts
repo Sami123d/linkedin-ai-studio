@@ -15,6 +15,7 @@ import type { ImageProvider, ImageResult } from "./image-types";
 /// not a hosted image.
 export class GeminiImageProvider implements ImageProvider {
   readonly name = "gemini";
+  readonly generative = true;
 
   async getImage(query: string): Promise<ImageResult> {
     throw new Error(

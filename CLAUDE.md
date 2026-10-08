@@ -87,3 +87,39 @@ tests/                   vitest unit tests (*.test.ts); server-only is stubbed
 - `src/components/knowledge-base/facet-manager.tsx` is the generic config-driven CRUD list + dialog form for every Knowledge Base facet. Extend its field config rather than writing a new form.
 - `ThemeProvider` and `ThemeToggle` live in `src/components/`. `useIsMobile` is in `src/hooks/use-mobile.ts`.
 
+## 7. Coding Conventions
+- Files are kebab-case. Components are PascalCase named exports (pages use `export default`). Use the `@/*` import alias (→ `src/*`).
+- Import order: external packages, a blank line, then `@/` imports. Use `import type` for types.
+- Put `import "server-only"` in every server-only module (ai, db, config/env.server, lib/webhook-auth, session).
+- Zod schemas are named `<thing>Schema`, with types from `z.infer`, and live in `src/validation/<feature>.ts`. Reuse the same schema for the form, the action and the LLM output.
+- Use Prisma model and enum types from `@/generated/prisma/client` in components. Don't redeclare them.
+- Comments use `///` doc style and explain *why*. Match the surrounding comment density.
+- Prettier formatting (default options + tailwind class sorting).
+
+## 8. API/Backend Integration
+- **Data**: the `prisma` singleton from `@/db/prisma`. Raw SQL (`$queryRaw`/`$executeRaw`) is used only for pgvector and the atomic claim in `api/scheduler/due`.
+- **Schema changes**:
+  1. Edit `prisma/schema.prisma`.
+  2. Run `npm run db:migrate` (needs `DIRECT_URL`) to create a migration.
+  3. Hand-edit the SQL if needed (pgvector, RLS `ENABLE ROW LEVEL SECURITY` on new tables).
+  4. Deploy with `npx prisma migrate deploy`.
+
+  `Profile` rows are created by a Postgres trigger on `auth.users`. App code must never insert a `Profile` row.
+- **External contracts**: `n8n/workflows/*.json` and `scripts/*.ts` both call the `/api/*` routes. If a route's request/response shape changes, update both and their `.md` docs.
+
+## 9. State Management
+Server-first: data loads in RSC pages via server actions, and mutations go through server actions followed by `revalidatePath`. Client state is local `useState` only (react-hook-form on login and register). There is no Redux, Zustand, React Query or context store, apart from the theme, tooltip and sidebar providers.
+
+## 10. Important Commands
+```
+npm run dev | build | start
+npm run lint            # eslint
+npm run typecheck       # tsc --noEmit
+npm test                # vitest run (tests/**/*.test.ts)
+npm run format | format:check
+npm run db:generate     # prisma generate (also runs on postinstall)
+npm run db:migrate | db:push | db:studio
+node --experimental-strip-types scripts/collect-trends.ts --dry-run   # Node 22
+```
+CI (`.github/workflows/ci.yml`) runs lint → typecheck → test → build with placeholder env vars. Run the same checks before finishing a change.
+

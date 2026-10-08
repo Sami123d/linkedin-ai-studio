@@ -46,3 +46,44 @@ Request flow: **page (RSC) → server action in `src/features/*/actions.ts` → 
   - Read env vars only through `serverEnv` (`src/config/env.server.ts`, `server-only`) and `clientEnv` (`src/config/env.client.ts`).
   - A new env var must be added to the schema, to `.env.example`, and to the CI placeholder env if it is required.
 
+## 4. Folder Structure
+```
+proxy.ts                 session refresh + route redirects
+prisma/schema.prisma     models (one status enum + *Attempt table per AI stage); migrations/ include raw SQL (pgvector, signup trigger, RLS, storage)
+src/app/(auth)/          login, register (react-hook-form + zod)
+src/app/(app)/<page>/    authenticated pages; layout.tsx = sidebar shell + auth guard
+src/app/api/             webhooks/{trends,analytics}, scheduler/{due,publish}, analytics/published-posts
+src/app/auth/callback/   Supabase email confirmation
+src/features/<feature>/  server actions ("use server") + feature utils; knowledge-base/<facet>/actions.ts
+src/ai/                  providers/, generate-structured.ts, <stage>/generate-*.ts (research, planning, writing, review, learning, images)
+src/components/ui/       shadcn primitives (generated)
+src/components/<feature>/ one client component per page (e.g. research-queue.tsx)
+src/validation/<feature>.ts  Zod schemas + inferred types (forms, webhooks, LLM output)
+src/config/ src/db/ src/lib/ src/hooks/
+scripts/                 standalone Node scripts (GitHub Actions ports of the n8n workflows) — no `@/` imports, no deps
+n8n/workflows/           exported workflow JSON + matching .md design docs
+tests/                   vitest unit tests (*.test.ts); server-only is stubbed
+```
+`src/ai/agents`, `src/ai/prompts`, `src/repositories`, `src/services` and `src/types` are empty placeholders (`.gitkeep`). Don't put new code there; follow the existing locations above.
+
+## 5. UI/UX and Design System
+- Neutral shadcn theme. Colors are oklch CSS variables in `globals.css` (`:root` and `.dark`), and `--radius` is 0.625rem. Fonts are Geist Sans and Geist Mono.
+- Use semantic token classes only (`bg-primary`, `text-muted-foreground`, `border`, `bg-card`, and so on). Do not hardcode colors, so light and dark mode both keep working.
+- App shell: collapsible icon sidebar (`src/components/layout/app-sidebar.tsx`, `NAV_ITEMS`), a header with `SidebarTrigger` and `ThemeToggle`, and `<main className="flex flex-1 flex-col gap-4 p-4">`.
+- Page layout pattern:
+  ```tsx
+  <div className="flex flex-col gap-6">
+    <div><h1 className="text-2xl font-semibold tracking-tight">…</h1><p className="text-muted-foreground">…</p></div>
+    <FeatureComponent data={…} />
+  </div>
+  ```
+- Lists of records are rendered as `Card`s. Status is shown with a `Badge`, using `STATUS_VARIANT`/`STATUS_LABEL` maps keyed by the Prisma enum (`default`/`secondary`/`destructive`).
+- Client components track pending state and errors with `useState` (`pendingId`, `errors: Record<id, string>`) and check `"error" in result`. There is no toast library, no `useActionState`, and no global store.
+
+## 6. Reusable Components
+- **Primitives in `src/components/ui/`**: alert, avatar, badge, button, card, dialog, dropdown-menu, input, label, select, separator, sheet, sidebar, skeleton, table, tabs, textarea, tooltip. Check this list before creating anything new. Add missing primitives with `npx shadcn add <name>`, not by hand.
+- Button variants: `default | outline | secondary | ghost | destructive | link`. Sizes: `default | xs | sm | lg | icon | icon-xs | icon-sm | icon-lg`.
+- `cn()` from `@/lib/utils` merges classes.
+- `src/components/knowledge-base/facet-manager.tsx` is the generic config-driven CRUD list + dialog form for every Knowledge Base facet. Extend its field config rather than writing a new form.
+- `ThemeProvider` and `ThemeToggle` live in `src/components/`. `useIsMobile` is in `src/hooks/use-mobile.ts`.
+

@@ -19,6 +19,9 @@ export type AIGenerateParams = {
   /// (see src/ai/generate-structured.ts), this flag is a hint, not a
   /// guarantee.
   json?: boolean;
+  /// Inline images (base64) sent alongside the prompt, for vision checks
+  /// such as the image relevance review. Text-only providers may reject it.
+  images?: { mimeType: string; data: string }[];
 };
 
 export type AIGenerateResult = {

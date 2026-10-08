@@ -2,7 +2,11 @@ import "server-only";
 
 import type { z } from "zod";
 
-import type { AIGenerateResult, AIProvider } from "@/ai/providers";
+import type {
+  AIGenerateParams,
+  AIGenerateResult,
+  AIProvider,
+} from "@/ai/providers";
 
 export class StructuredGenerationError extends Error {
   constructor(
@@ -26,13 +30,20 @@ export async function generateStructured<T>({
   systemPrompt,
   prompt,
   schema,
+  images,
 }: {
   provider: AIProvider;
   systemPrompt?: string;
   prompt: string;
   schema: z.ZodType<T>;
+  images?: AIGenerateParams["images"];
 }): Promise<{ data: T; raw: AIGenerateResult }> {
-  const raw = await provider.generate({ systemPrompt, prompt, json: true });
+  const raw = await provider.generate({
+    systemPrompt,
+    prompt,
+    json: true,
+    ...(images ? { images } : {}),
+  });
 
   let json: unknown;
   try {

@@ -64,7 +64,17 @@ export class GeminiProvider implements AIProvider {
   ): Promise<AIGenerateResult> {
     const response = await this.client.models.generateContent({
       model,
-      contents: params.prompt,
+      contents: params.images?.length
+        ? [
+            {
+              role: "user",
+              parts: [
+                { text: params.prompt },
+                ...params.images.map((inlineData) => ({ inlineData })),
+              ],
+            },
+          ]
+        : params.prompt,
       config: {
         systemInstruction: params.systemPrompt,
         ...(params.json ? { responseMimeType: "application/json" } : {}),

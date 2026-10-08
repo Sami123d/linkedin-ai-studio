@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getImageProvider } from "@/ai/providers";
+import { generateReviewedImage } from "@/ai/images/generate-reviewed-image";
+import { getAIProvider, getImageProvider } from "@/ai/providers";
 import { prisma } from "@/db/prisma";
 import { requireProfileId } from "@/features/knowledge-base/session";
 import type { ActionResult } from "@/features/knowledge-base/types";
@@ -63,7 +64,19 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
 
   try {
     const provider = getImageProvider();
-    const result = await provider.getImage(query);
+    // A generative provider would draw the angle's words as a text slide,
+    // so it gets a wordless scene written from the post, and the result is
+    // reviewed against the post (and regenerated if off-topic).
+    const reviewed = provider.generative
+      ? await generateReviewedImage(getAIProvider(), provider, {
+          topic: draft.contentPlan.research.trend.topic,
+          angle: draft.contentPlan.selectedAngle,
+          hook: draft.contentPlan.hook,
+          content: draft.content ?? draft.slides.join("\n"),
+        })
+      : null;
+    const imageQuery = reviewed?.scene ?? query;
+    const result = reviewed?.result ?? (await provider.getImage(query));
 
     await prisma.$transaction([
       prisma.imageAsset.update({
@@ -71,6 +84,7 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
         data: {
           status: "COMPLETED",
           provider: provider.name,
+          query: imageQuery,
           url: result.url,
           thumbUrl: result.thumbUrl,
           attributionName: result.attributionName,
@@ -85,7 +99,7 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
           imageId: image.id,
           attemptNumber,
           provider: provider.name,
-          query,
+          query: imageQuery,
           resultUrl: result.url,
           succeeded: true,
           startedAt: attemptStartedAt,
@@ -95,7 +109,12 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
     ]);
 
     revalidatePath("/images");
-    return { success: true, message: "Image found." };
+    return {
+      success: true,
+      message: reviewed?.review
+        ? `Image generated: relevance ${reviewed.review.relevance}/10 after ${reviewed.rounds} attempt(s).`
+        : "Image found.",
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const providerName = getImageProviderNameSafely();

@@ -9,6 +9,7 @@ import { GeminiProvider } from "./gemini";
 import type { ImageProvider } from "./image-types";
 import { OllamaEmbeddingProvider } from "./ollama-embedding";
 import { OllamaProvider } from "./ollama";
+import { PollinationsImageProvider } from "./pollinations";
 import type { AIProvider } from "./types";
 import { UnsplashImageProvider } from "./unsplash";
 
@@ -66,6 +67,9 @@ export function getImageProvider(): ImageProvider {
       return cachedImage;
     case "gemini":
       cachedImage = new GeminiImageProvider();
+      return cachedImage;
+    case "pollinations":
+      cachedImage = new PollinationsImageProvider();
       return cachedImage;
   }
 }

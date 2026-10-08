@@ -36,12 +36,23 @@ const schema = z.object({
   /// hands back. "gemini" is a billing-gated scaffold (verified live: the
   /// free tier for Gemini's image models is 0 — see gemini-image.ts) until
   /// the user enables billing; "unsplash" (search, not generation) is the
-  /// real default for now.
-  IMAGE_PROVIDER: z.enum(["unsplash", "gemini"]).default("unsplash"),
+  /// real default for now. "pollinations" generates free AI images.
+  IMAGE_PROVIDER: z
+    .enum(["unsplash", "gemini", "pollinations"])
+    .default("unsplash"),
   UNSPLASH_ACCESS_KEY: z
     .string()
     .optional()
     .transform((value) => (value ? value : undefined)),
+  /// Optional: without it Pollinations falls back to its legacy anonymous
+  /// endpoint (rate limited, watermarked, fixed model). With it, images come
+  /// from gen.pollinations.ai and are re-hosted on media.pollinations.ai.
+  POLLINATIONS_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+  /// Only applies with an API key. The cheapest model not marked paid-only.
+  POLLINATIONS_MODEL: z.string().default("tongyi-mai/z-image-turbo"),
   /// Shared secret n8n's Schedule Trigger workflow sends on every call to
   /// GET /api/scheduler/due and POST /api/scheduler/publish — same
   /// reasoning as TREND_WEBHOOK_SECRET (these endpoints are unauthenticated
@@ -68,6 +79,8 @@ export const serverEnv = schema.parse({
   OLLAMA_MODEL: process.env.OLLAMA_MODEL,
   IMAGE_PROVIDER: process.env.IMAGE_PROVIDER,
   UNSPLASH_ACCESS_KEY: process.env.UNSPLASH_ACCESS_KEY,
+  POLLINATIONS_API_KEY: process.env.POLLINATIONS_API_KEY,
+  POLLINATIONS_MODEL: process.env.POLLINATIONS_MODEL,
   SCHEDULER_WEBHOOK_SECRET: process.env.SCHEDULER_WEBHOOK_SECRET,
   ANALYTICS_WEBHOOK_SECRET: process.env.ANALYTICS_WEBHOOK_SECRET,
 });

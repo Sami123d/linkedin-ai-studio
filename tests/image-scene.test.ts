@@ -43,14 +43,32 @@ describe("generateImageScene", () => {
     expect(result.data.scene).toBe(scene);
     expect(result.data.visualSubject).toBe("film strip");
     expect(calls[0].json).toBe(true);
-    expect(calls[0].systemPrompt).toContain("never include words");
-    expect(calls[0].systemPrompt).toContain("recognize at a glance");
+    expect(calls[0].systemPrompt).toContain("Nothing with writing or numerals");
+    expect(calls[0].systemPrompt).toContain("ONE tangible object");
     expect(result.prompt).toContain("Topic: AI video tools");
     expect(result.prompt).toContain("Angle: Building a Motion Design System");
     expect(result.prompt).toContain("Hook: Every AI video looks the same.");
     // The post is capped so very long drafts don't blow up the prompt.
     expect(result.prompt).not.toContain("x".repeat(2501));
     expect(result.prompt).not.toContain("rejected");
+  });
+
+  it("grounds the scene in the research and bans figure-of-speech props", async () => {
+    const { provider, calls } = fakeProvider(
+      sceneJson("Workflow cards flowing through automated stages."),
+    );
+    const result = await generateImageScene(provider, {
+      ...input,
+      summary: "Oracle uses AI agents to automate recruiting workflows.",
+      keyInsights: ["a", "b", "c", "d"],
+    });
+
+    expect(result.prompt).toContain("Research summary: Oracle uses AI agents");
+    expect(result.prompt).toContain("- c");
+    expect(result.prompt).not.toContain("- d");
+    for (const banned of ["clocks", "calendars", "hourglasses", "dials"]) {
+      expect(calls[0].systemPrompt).toContain(banned);
+    }
   });
 
   it("includes reviewer feedback when retrying", async () => {

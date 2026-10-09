@@ -77,10 +77,10 @@ export function ImageQueue({
         const image = draft.imageAsset;
         const isRunning = pendingId === draft.id;
         const buttonLabel = !image
-          ? "Find image"
+          ? "Generate image"
           : image.status === "FAILED"
             ? "Retry"
-            : "Find another";
+            : "Generate another";
 
         return (
           <Card key={draft.id}>
@@ -146,7 +146,7 @@ export function ImageQueue({
                 disabled={isRunning || image?.status === "PROCESSING"}
                 onClick={() => handleRun(draft.id)}
               >
-                {isRunning ? "Searching..." : buttonLabel}
+                {isRunning ? "Generating..." : buttonLabel}
               </Button>
             </CardContent>
           </Card>

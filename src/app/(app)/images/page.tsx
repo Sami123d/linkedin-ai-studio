@@ -11,9 +11,11 @@ export default async function ImagesPage() {
           Post images
         </h1>
         <p className="text-muted-foreground">
-          Find a relevant, properly-attributed photo for each completed
-          draft. AI-generated images are a future upgrade once billing is
-          enabled — this uses free Unsplash search for now.
+          One relevant image per completed draft. With the Pollinations
+          provider it is generated for the post&apos;s subject in the
+          HalfClicks brand style, checked against the post, and stamped with
+          the logo and slogan; with Unsplash it is a searched stock photo.
+          Generating can take up to a minute.
         </p>
       </div>
 

@@ -18,4 +18,8 @@ export interface ImageProvider {
   /// far better than a long scene description.
   readonly generative: boolean;
   getImage(query: string): Promise<ImageResult>;
+  /// Stores finished image bytes (e.g. after branding) somewhere publicly
+  /// fetchable and returns the URL. Optional: only providers with their own
+  /// media store can do it.
+  host?(image: Blob): Promise<string>;
 }

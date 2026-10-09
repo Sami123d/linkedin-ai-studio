@@ -10,7 +10,13 @@ const globalForPrisma = globalThis as unknown as {
 
 function createPrismaClient() {
   const adapter = new PrismaPg({ connectionString: serverEnv.DATABASE_URL });
-  return new PrismaClient({ adapter });
+  // The post pipeline waits 20-40s on AI/image calls between database calls,
+  // so the pooled connection is stale and a reconnect (~1.6s measured) can
+  // exceed Prisma's 2s default wait for a transaction to start.
+  return new PrismaClient({
+    adapter,
+    transactionOptions: { maxWait: 10_000, timeout: 20_000 },
+  });
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

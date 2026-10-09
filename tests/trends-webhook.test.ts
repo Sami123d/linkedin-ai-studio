@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const SECRET = "test-secret-0123456789";
 
 const createMany = vi.fn();
+const cleanupStaleData = vi.fn();
 
 vi.mock("@/config/env.server", () => ({
   serverEnv: { TREND_WEBHOOK_SECRET: "test-secret-0123456789" },
+}));
+vi.mock("@/features/cleanup/cleanup", () => ({
+  cleanupStaleData: (...args: unknown[]) => cleanupStaleData(...args),
 }));
 vi.mock("@/db/prisma", () => ({
   prisma: {
@@ -30,6 +34,8 @@ describe("POST /api/webhooks/trends", () => {
   beforeEach(() => {
     createMany.mockReset();
     createMany.mockResolvedValue({ count: 2 });
+    cleanupStaleData.mockReset();
+    cleanupStaleData.mockResolvedValue({});
   });
 
   it("rejects requests without the shared secret", async () => {
@@ -69,5 +75,17 @@ describe("POST /api/webhooks/trends", () => {
     const res = await POST(post("[]", SECRET));
     expect(await res.json()).toEqual({ inserted: 0 });
     expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("runs housekeeping after inserting, and a cleanup failure does not fail ingestion", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    cleanupStaleData.mockRejectedValueOnce(new Error("db down"));
+
+    const res = await POST(post(JSON.stringify({ topic: "Agents" }), SECRET));
+
+    expect(cleanupStaleData).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(201);
+    expect(await res.json()).toEqual({ inserted: 2 });
+    error.mockRestore();
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { serverEnv } from "@/config/env.server";
 import { prisma } from "@/db/prisma";
+import { cleanupStaleData } from "@/features/cleanup/cleanup";
 import { checkWebhookSecret } from "@/lib/webhook-auth";
 import { trendWebhookBodySchema } from "@/validation/trends";
 
@@ -39,6 +40,12 @@ export async function POST(request: Request) {
       publishedAt: item.publishedAt,
     })),
   });
+
+  // Housekeeping rides on the collector run so no extra scheduler is needed.
+  // A cleanup failure must never fail trend ingestion.
+  await cleanupStaleData().catch((error) =>
+    console.error("Trend cleanup failed:", error),
+  );
 
   return NextResponse.json({ inserted: count }, { status: 201 });
 }

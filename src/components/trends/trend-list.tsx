@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { PipelineRunner } from "@/components/trends/pipeline-runner";
 import { updateTrendStatus } from "@/features/trends/actions";
 import type { Trend, TrendStatus } from "@/generated/prisma/client";
 
@@ -105,11 +106,16 @@ export function TrendList({ trends }: { trends: Trend[] }) {
               )}
             </div>
           </CardHeader>
-          {trend.summary && (
-            <CardContent>
-              <p className="text-muted-foreground text-sm whitespace-pre-wrap">
-                {trend.summary}
-              </p>
+          {(trend.summary || trend.status !== "DISMISSED") && (
+            <CardContent className="flex flex-col gap-3">
+              {trend.summary && (
+                <p className="text-muted-foreground text-sm whitespace-pre-wrap">
+                  {trend.summary}
+                </p>
+              )}
+              {trend.status !== "DISMISSED" && (
+                <PipelineRunner trendId={trend.id} />
+              )}
             </CardContent>
           )}
         </Card>

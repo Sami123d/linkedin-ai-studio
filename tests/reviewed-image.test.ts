@@ -64,12 +64,9 @@ describe("generateReviewedImage", () => {
     const { provider, calls } = fakeAI([good]);
     const images = fakeImages();
 
-    const result = await generateReviewedImage(
-      provider,
-      images,
-      input,
+    const result = await generateReviewedImage(provider, images, input, {
       fetchImage,
-    );
+    });
 
     expect(images.getImage).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
@@ -88,12 +85,9 @@ describe("generateReviewedImage", () => {
     ]);
     const images = fakeImages();
 
-    const result = await generateReviewedImage(
-      provider,
-      images,
-      input,
+    const result = await generateReviewedImage(provider, images, input, {
       fetchImage,
-    );
+    });
 
     expect(images.getImage).toHaveBeenCalledTimes(MAX_IMAGE_ROUNDS);
     expect(result.result.url).toBe("https://img/2");
@@ -109,12 +103,9 @@ describe("generateReviewedImage", () => {
     ]);
     const images = fakeImages();
 
-    const result = await generateReviewedImage(
-      provider,
-      images,
-      input,
+    const result = await generateReviewedImage(provider, images, input, {
       fetchImage,
-    );
+    });
 
     expect(result.result.url).toBe("https://img/2");
     expect(result.rounds).toBe(2);
@@ -125,12 +116,9 @@ describe("generateReviewedImage", () => {
     const { provider } = fakeAI([new Error("503 overloaded")]);
     const images = fakeImages();
 
-    const result = await generateReviewedImage(
-      provider,
-      images,
-      input,
+    const result = await generateReviewedImage(provider, images, input, {
       fetchImage,
-    );
+    });
 
     expect(images.getImage).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({
@@ -145,7 +133,67 @@ describe("generateReviewedImage", () => {
     images.getImage.mockRejectedValueOnce(new Error("Pollinations down"));
 
     await expect(
-      generateReviewedImage(provider, images, input, fetchImage),
+      generateReviewedImage(provider, images, input, { fetchImage }),
     ).rejects.toThrow("Pollinations down");
+  });
+});
+
+describe("generateReviewedImage branding", () => {
+  const png = new Uint8Array([137, 80, 78, 71]);
+
+  function hostedImages(host: (image: Blob) => Promise<string>) {
+    const images = fakeImages();
+    return Object.assign(images, { host: vi.fn(host) });
+  }
+
+  it("brands the winning image and returns the hosted branded URL", async () => {
+    const { provider } = fakeAI([good]);
+    const images = hostedImages(async () => "https://media/branded");
+    const brand = vi.fn(async () => png);
+
+    const result = await generateReviewedImage(provider, images, input, {
+      fetchImage,
+      brand,
+    });
+
+    expect(fetchImage).toHaveBeenLastCalledWith("https://img/1");
+    expect(brand).toHaveBeenCalledWith({
+      mimeType: "image/jpeg",
+      data: "AAAA",
+    });
+    const hosted = images.host.mock.calls[0][0] as Blob;
+    expect(hosted.type).toBe("image/png");
+    expect(result.branded).toBe(true);
+    expect(result.result.url).toBe("https://media/branded");
+  });
+
+  it("keeps the unbranded image when branding or hosting fails", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { provider } = fakeAI([good]);
+    const images = hostedImages(async () => {
+      throw new Error("needs API key");
+    });
+
+    const result = await generateReviewedImage(provider, images, input, {
+      fetchImage,
+      brand: async () => png,
+    });
+
+    expect(result.branded).toBe(false);
+    expect(result.result.url).toBe("https://img/1");
+    error.mockRestore();
+  });
+
+  it("skips branding for providers that cannot host images", async () => {
+    const { provider } = fakeAI([good]);
+    const brand = vi.fn(async () => png);
+
+    const result = await generateReviewedImage(provider, fakeImages(), input, {
+      fetchImage,
+      brand,
+    });
+
+    expect(brand).not.toHaveBeenCalled();
+    expect(result.branded).toBe(false);
   });
 });

@@ -290,9 +290,18 @@ model Trend {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  /// Research Studio: null for the shared, collected trend pool. Set when a
+  /// profile's custom research request created this trend, which makes it
+  /// (and its ResearchBrief) private to that profile: shared listings filter
+  /// on `profileId: null`, and every action checks ownership.
+  profileId String? @map("profile_id") @db.Uuid
+
   researchBrief ResearchBrief?
+  researchRequest ResearchRequest?  @relation("RequestTrend")
+  baseForRequests ResearchRequest[] @relation("RequestBaseTrend")
 
   @@index([status, createdAt])
+  @@index([profileId])
   @@map("trends")
 }
 
@@ -338,6 +347,14 @@ model ResearchBrief {
   risks               String[]
   statistics          String[]
   contentAngles       String[] @map("content_angles")
+
+  /// Research Studio (sourced briefs only; null/empty for classic briefs).
+  /// `evidence` holds the grounded findings with snapshots of the sources
+  /// each one cites, so provenance survives later re-discovery.
+  whyItMattersNow String?  @map("why_it_matters_now") @db.Text
+  audienceFit     String?  @map("audience_fit") @db.Text
+  platformFit     String[] @map("platform_fit")
+  evidence        Json?
 
   errorMessage String?   @map("error_message") @db.Text
   startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
@@ -476,6 +493,10 @@ model ContentPlan {
   toneGuidance  String?        @map("tone_guidance") @db.Text
   callToAction  String?        @map("call_to_action") @db.Text
 
+  /// Campaign targets. LINKEDIN is always handled by Draft/ScheduledPost;
+  /// FACEBOOK/INSTAGRAM get a PlatformVariant each (see the end of file).
+  platforms Platform[] @default([LINKEDIN])
+
   errorMessage String?   @map("error_message") @db.Text
   startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
   completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
@@ -562,6 +583,7 @@ model Draft {
   qualityReview QualityReview?
   imageAsset  ImageAsset?
   scheduledPost ScheduledPost?
+  platformVariants PlatformVariant[]
 
   @@map("drafts")
 }
@@ -902,4 +924,316 @@ model LearningAttempt {
 
   @@index([insightId])
   @@map("learning_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 1: multi-platform variants
+//
+// LinkedIn stays on Draft/ScheduledPost (and the external publisher), so
+// VariantPlatform deliberately has no LINKEDIN value. A variant is
+// generated from a completed Draft's campaign. Phase 1 has NO publisher for
+// these platforms: approval + scheduledFor only mark a *planned* entry, and
+// publishStatus stays NOT_PUBLISHED until a verified publish result is
+// recorded by a future integration. `errorMessage` is for generation
+// failures (like Draft); `publishError` is reserved for publishing.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Platform {
+  LINKEDIN
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum VariantPlatform {
+  FACEBOOK
+  INSTAGRAM
+}
+
+/// PUBLISHING = a claim is in flight. UNCONFIRMED = the request may have
+/// reached the platform (timeout / ambiguous response); never retried
+/// automatically, only after the user checks the platform.
+enum VariantPublishStatus {
+  NOT_PUBLISHED
+  PUBLISHED
+  FAILED
+  PUBLISHING
+  UNCONFIRMED
+}
+
+model PlatformVariant {
+  id String @id @default(cuid())
+  /// Denormalized from Draft -> ContentPlan so every query can scope by
+  /// profile directly; actions still verify the parent chain.
+  profileId String          @map("profile_id") @db.Uuid
+  draftId   String          @map("draft_id")
+  platform  VariantPlatform
+
+  status   DraftStatus @default(PENDING)
+  attempts Int         @default(0)
+
+  provider String?
+  model    String?
+
+  content  String? @db.Text
+  hashtags String[]
+  /// True once the user has hand-edited the generated text.
+  edited   Boolean @default(false)
+
+  errorMessage String?   @map("error_message") @db.Text
+  startedAt    DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  approvalStatus  ApprovalStatus @default(PENDING) @map("approval_status")
+  scheduledFor    DateTime?      @map("scheduled_for") @db.Timestamptz(6)
+  rejectionReason String?        @map("rejection_reason") @db.Text
+  approvedAt      DateTime?      @map("approved_at") @db.Timestamptz(6)
+
+  publishStatus VariantPublishStatus @default(NOT_PUBLISHED) @map("publish_status")
+  publishedAt   DateTime?            @map("published_at") @db.Timestamptz(6)
+  publishedUrl  String?              @map("published_url") @db.Text
+  publishError  String?              @map("publish_error") @db.Text
+
+  /// Phase 2 (Meta publishing). `mediaUrl` is a stable public HTTPS JPEG
+  /// prepared at approval time from `mediaSourceUrl` (the ImageAsset url it
+  /// was derived from); `igContainerId` lets an interrupted Instagram
+  /// publish resume instead of creating a second container.
+  includeImage        Boolean   @default(true) @map("include_image")
+  linkUrl             String?   @map("link_url") @db.Text
+  mediaUrl            String?   @map("media_url") @db.Text
+  mediaSourceUrl      String?   @map("media_source_url") @db.Text
+  connectionId        String?   @map("connection_id")
+  targetAccountId     String?   @map("target_account_id")
+  publishedPostId     String?   @map("published_post_id")
+  publishAttempts     Int       @default(0) @map("publish_attempts")
+  publishingStartedAt DateTime? @map("publishing_started_at") @db.Timestamptz(6)
+  igContainerId       String?   @map("ig_container_id")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  draft       Draft            @relation(fields: [draftId], references: [id], onDelete: Cascade)
+  attemptLogs VariantAttempt[]
+  publishLogs VariantPublishAttempt[]
+  connection  MetaConnection?         @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([draftId, platform])
+  @@index([profileId, scheduledFor])
+  @@map("platform_variants")
+}
+
+model VariantAttempt {
+  id            String @id @default(cuid())
+  variantId     String @map("variant_id")
+  attemptNumber Int    @map("attempt_number")
+
+  provider String
+  model    String
+  prompt   String  @db.Text
+  response String? @db.Text
+
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+  totalTokens      Int? @map("total_tokens")
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  variant PlatformVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@map("variant_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Phase 2: Meta (Facebook Pages + Instagram) publishing
+//
+// One connection per profile. Tokens are AES-256-GCM encrypted by
+// src/lib/crypto/token-crypto.ts before they reach this table and are never
+// returned to the browser. The long-lived user token (~60 days) is kept only
+// to re-list Pages; a Page token derived from it does not expire but is
+// invalidated by password changes, role removal or app de-authorization.
+// ─────────────────────────────────────────────────────────────────────────
+
+enum MetaConnectionStatus {
+  CONNECTED
+  NEEDS_REAUTH
+}
+
+enum PublishOutcome {
+  PUBLISHED
+  FAILED
+  UNCONFIRMED
+  PENDING
+}
+
+model MetaConnection {
+  id        String @id @default(cuid())
+  profileId String @unique @map("profile_id") @db.Uuid
+
+  status       MetaConnectionStatus @default(CONNECTED)
+  metaUserId   String               @map("meta_user_id")
+  metaUserName String?              @map("meta_user_name")
+
+  userTokenEnc       String    @map("user_token_enc") @db.Text
+  userTokenExpiresAt DateTime? @map("user_token_expires_at") @db.Timestamptz(6)
+  grantedScopes      String[]  @map("granted_scopes")
+  declinedScopes     String[]  @map("declined_scopes")
+
+  pageId             String? @map("page_id")
+  pageName           String? @map("page_name")
+  pageTokenEnc       String? @map("page_token_enc") @db.Text
+  instagramAccountId String? @map("instagram_account_id")
+  instagramUsername  String? @map("instagram_username")
+
+  lastError String? @map("last_error") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  variants PlatformVariant[]
+
+  @@map("meta_connections")
+}
+
+/// Audit row per publish step. Holds only sanitized outcome data (never
+/// tokens or raw provider bodies).
+model VariantPublishAttempt {
+  id            String @id @default(cuid())
+  variantId     String @map("variant_id")
+  attemptNumber Int    @map("attempt_number")
+
+  step            String
+  outcome         PublishOutcome
+  targetAccountId String?        @map("target_account_id")
+  platformPostId  String?        @map("platform_post_id")
+  errorCategory   String?        @map("error_category")
+  errorCode       Int?           @map("error_code")
+  errorSubcode    Int?           @map("error_subcode")
+  httpStatus      Int?           @map("http_status")
+  message         String?        @db.Text
+  traceId         String?        @map("trace_id")
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  variant PlatformVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@map("variant_publish_attempts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Research Studio: trend-to-post research with real sources
+//
+// Profile-owned. A request holds the user's prompt and creative preferences
+// (never stored on the shared Trend/ResearchBrief), the sources discovered
+// through real search APIs, and an audit row per discovery attempt. When the
+// user generates the brief, a PRIVATE Trend (profileId set) + ResearchBrief
+// are created so the existing plan/write/review/image/variant stages run
+// unchanged; `trendId` links back for provenance.
+// ─────────────────────────────────────────────────────────────────────────
+
+model ResearchRequest {
+  id        String @id @default(cuid())
+  profileId String @map("profile_id") @db.Uuid
+
+  prompt        String     @db.Text
+  timeframeDays Int        @default(7) @map("timeframe_days")
+  audience      String?    @db.Text
+  industry      String?
+  angle         String?    @db.Text
+  purpose       String?    @db.Text
+  tone          String?
+  instructions  String?    @db.Text
+  callToAction  String?    @map("call_to_action") @db.Text
+  /// Only when true may writers put source links into posts.
+  includeLinks  Boolean    @default(false) @map("include_links")
+  platforms     Platform[] @default([LINKEDIN])
+
+  /// The shared trend the user started from, if any.
+  baseTrendId String? @map("base_trend_id")
+  /// The private trend created for the brief.
+  trendId     String? @unique @map("trend_id")
+  focusTitle  String? @map("focus_title") @db.Text
+
+  discoveryStatus   ResearchStatus @default(PENDING) @map("discovery_status")
+  discoveryAttempts Int            @default(0) @map("discovery_attempts")
+  discoveryError    String?        @map("discovery_error") @db.Text
+  discoveredAt      DateTime?      @map("discovered_at") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  baseTrend     Trend?                     @relation("RequestBaseTrend", fields: [baseTrendId], references: [id], onDelete: SetNull)
+  trend         Trend?                     @relation("RequestTrend", fields: [trendId], references: [id], onDelete: SetNull)
+  sources       ResearchSource[]
+  discoveryLogs ResearchDiscoveryAttempt[]
+
+  @@index([profileId, createdAt])
+  @@map("research_requests")
+}
+
+/// A source exactly as a search provider returned it (validated, cleaned of
+/// markup, deduplicated). Nothing here is generated by an LLM.
+model ResearchSource {
+  id        String @id @default(cuid())
+  requestId String @map("request_id")
+  profileId String @map("profile_id") @db.Uuid
+
+  provider      String
+  title         String    @db.Text
+  publisher     String?
+  url           String    @db.Text
+  /// e.g. the Hacker News discussion for a linked article.
+  discussionUrl String?   @map("discussion_url") @db.Text
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(6)
+  retrievedAt   DateTime  @map("retrieved_at") @db.Timestamptz(6)
+  snippet       String?   @db.Text
+  /// Published within the request's timeframe. Undated sources are never
+  /// counted as recent.
+  isRecent      Boolean   @default(false) @map("is_recent")
+  selected      Boolean   @default(false)
+  dedupeKey     String    @map("dedupe_key")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  request ResearchRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, dedupeKey])
+  @@index([requestId])
+  @@map("research_sources")
+}
+
+model ResearchDiscoveryAttempt {
+  id            String @id @default(cuid())
+  requestId     String @map("request_id")
+  attemptNumber Int    @map("attempt_number")
+
+  queries         String[]
+  /// Per provider: { ok, count, error? } (sanitized, no credentials).
+  providerResults Json     @map("provider_results")
+  sourceCount     Int      @map("source_count")
+
+  /// Query extraction (LLM) audit; null when the deterministic fallback ran.
+  provider String?
+  model    String?
+  prompt   String? @db.Text
+  response String? @db.Text
+
+  succeeded    Boolean
+  errorMessage String? @map("error_message") @db.Text
+
+  startedAt   DateTime  @map("started_at") @db.Timestamptz(6)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(6)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  request ResearchRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("research_discovery_attempts")
 }

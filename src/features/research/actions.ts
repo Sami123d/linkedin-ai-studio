@@ -16,7 +16,9 @@ import type { ActionResult } from "@/features/knowledge-base/types";
 export async function listResearchQueue() {
   await requireProfileId();
   return prisma.trend.findMany({
-    where: { status: "REVIEWED" },
+    // Shared trends only; private Research Studio trends are researched
+    // from their sources in /studio.
+    where: { status: "REVIEWED", profileId: null },
     include: { researchBrief: true },
     orderBy: { createdAt: "desc" },
   });
@@ -26,11 +28,16 @@ export async function listResearchQueue() {
 /// last attempt failed — both are the same operation (retry-in-place, see
 /// schema.prisma's ResearchBrief comment), so there's one action, not two.
 export async function runResearch(trendId: string): Promise<ActionResult> {
-  await requireProfileId();
+  const profileId = await requireProfileId();
 
   const trend = await prisma.trend.findUnique({ where: { id: trendId } });
-  if (!trend) {
+  if (!trend || (trend.profileId !== null && trend.profileId !== profileId)) {
     return { error: "Trend not found." };
+  }
+  // A private trend's brief is built from its real sources in Research
+  // Studio; the source-less classic agent must not overwrite it.
+  if (trend.profileId !== null) {
+    return { error: "Research this topic from its sources in Research Studio." };
   }
   if (trend.status !== "REVIEWED") {
     return { error: "Only reviewed trends can be researched." };

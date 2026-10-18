@@ -5,6 +5,10 @@ import {
   StructuredGenerationError,
 } from "@/ai/generate-structured";
 import type { AIGenerateResult, AIProvider } from "@/ai/providers";
+import {
+  formatCreativeContext,
+  type CreativeContext,
+} from "@/ai/creative-context";
 import { contentPlanSchema } from "@/validation/planning";
 
 /// Same reasoning as ResearchGenerationError (src/ai/research/generate-research-brief.ts):
@@ -50,9 +54,11 @@ export type PlanningInput = {
   };
   knowledgeContext: string[];
   goals: string[];
+  /// Research Studio preferences + verified findings (optional).
+  creative?: CreativeContext | null;
 };
 
-function buildPrompt(input: PlanningInput): string {
+export function buildPrompt(input: PlanningInput): string {
   const lines = [`Trending topic: ${input.trendTopic}`, ""];
 
   if (input.research.executiveSummary) {
@@ -99,6 +105,8 @@ function buildPrompt(input: PlanningInput): string {
       "",
     );
   }
+
+  lines.push(...formatCreativeContext(input.creative));
 
   lines.push(
     "Produce the content plan now: pick one format, one angle, a hook (opening line), the " +

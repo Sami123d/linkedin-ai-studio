@@ -11,6 +11,7 @@ import { prisma } from "@/db/prisma";
 import { requireProfileId } from "@/features/knowledge-base/session";
 import type { ActionResult } from "@/features/knowledge-base/types";
 import { retrieveRelevantChunks } from "@/features/rag/retrieve";
+import { loadCreativeContext } from "@/features/research-studio/context";
 
 /// Completed content plans belonging to the current user, joined with their
 /// draft (if any). ContentPlan is already scoped to (research, profile),
@@ -83,6 +84,9 @@ export async function runDraft(planId: string): Promise<ActionResult> {
       callToAction: plan.callToAction ?? "",
       writingSamples: writingSamples.map((w) => w.content),
       knowledgeContext: knowledgeChunks.map((c) => c.content),
+      creative: await loadCreativeContext(profileId, plan.researchId).catch(
+        () => null,
+      ),
     });
 
     await prisma.$transaction([

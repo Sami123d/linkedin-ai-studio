@@ -29,6 +29,15 @@ export async function runPipelineStep(input: unknown): Promise<ActionResult> {
   }
   const { trendId, step } = parsed.data;
 
+  // Shared trends, or this profile's own private Research Studio trend.
+  const owner = await prisma.trend.findUnique({
+    where: { id: trendId },
+    select: { profileId: true },
+  });
+  if (!owner || (owner.profileId !== null && owner.profileId !== profileId)) {
+    return { error: "Trend not found." };
+  }
+
   if (step === "research") {
     const trend = await prisma.trend.findUnique({
       where: { id: trendId },

@@ -14,6 +14,8 @@ import type { TrendStatus } from "@/generated/prisma/client";
 export async function listTrends() {
   await requireProfileId();
   return prisma.trend.findMany({
+    // Only the shared pool; private Research Studio trends live in /studio.
+    where: { profileId: null },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100,
   });
@@ -25,7 +27,7 @@ export async function updateTrendStatus(
 ): Promise<ActionResult> {
   await requireProfileId();
   const { count } = await prisma.trend.updateMany({
-    where: { id },
+    where: { id, profileId: null },
     data: { status },
   });
   if (count === 0) {

@@ -11,15 +11,21 @@ import { prisma } from "@/db/prisma";
 import { requireProfileId } from "@/features/knowledge-base/session";
 import type { ActionResult } from "@/features/knowledge-base/types";
 import { retrieveRelevantChunks } from "@/features/rag/retrieve";
+import { loadCreativeContext } from "@/features/research-studio/context";
 
 /// Completed research briefs, joined with the current user's own plan for
 /// each one (if any) — a ContentPlan is scoped to (research, profile), so
 /// two users planning off the same brief never see each other's plan.
+/// Shared briefs plus this profile's own private Research Studio briefs;
+/// other profiles' private briefs are never listed.
 export async function listPlanningQueue() {
   const profileId = await requireProfileId();
 
   const researchBriefs = await prisma.researchBrief.findMany({
-    where: { status: "COMPLETED" },
+    where: {
+      status: "COMPLETED",
+      trend: { OR: [{ profileId: null }, { profileId }] },
+    },
     include: {
       trend: true,
       contentPlans: { where: { profileId } },
@@ -40,7 +46,11 @@ export async function runContentPlan(researchId: string): Promise<ActionResult> 
     where: { id: researchId },
     include: { trend: true },
   });
-  if (!research) {
+  // A private (Research Studio) brief belongs to one profile only.
+  if (
+    !research ||
+    (research.trend.profileId !== null && research.trend.profileId !== profileId)
+  ) {
     return { error: "Research brief not found." };
   }
   if (research.status !== "COMPLETED") {
@@ -91,6 +101,9 @@ export async function runContentPlan(researchId: string): Promise<ActionResult> 
       },
       knowledgeContext: knowledgeChunks.map((c) => c.content),
       goals: goals.map((g) => `${g.title}: ${g.content}`),
+      creative: await loadCreativeContext(profileId, research.id).catch(
+        () => null,
+      ),
     });
 
     await prisma.$transaction([

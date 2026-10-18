@@ -1,6 +1,11 @@
 import "server-only";
 import { z } from "zod";
 
+const optionalString = z
+  .string()
+  .optional()
+  .transform((value) => (value ? value : undefined));
+
 const schema = z.object({
   DATABASE_URL: z.url(),
   DIRECT_URL: z.url(),
@@ -64,6 +69,36 @@ const schema = z.object({
   /// /api/webhooks/analytics. Separate secret from the trend/scheduler ones
   /// (different consumer/purpose), same reasoning throughout this file.
   ANALYTICS_WEBHOOK_SECRET: z.string().min(16),
+  /// Meta (Facebook/Instagram) publishing. All optional so the app still
+  /// boots without them: the /platforms page then shows setup instructions
+  /// instead of a Connect button. Blank strings count as "not set".
+  META_APP_ID: optionalString,
+  META_APP_SECRET: optionalString,
+  /// Pinned Graph API version. v25.0 is the version Meta's current Pages and
+  /// Instagram publishing docs use; v26.0 exists but is newer than what the
+  /// docs show. Override only after re-checking the changelog.
+  META_GRAPH_API_VERSION: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : "v25.0"))
+    .pipe(z.string().regex(/^v\d+\.\d+$/)),
+  /// 32 random bytes, hex (64 chars) or base64. Encrypts stored Meta tokens
+  /// (AES-256-GCM) and signs the OAuth state. Losing or changing it makes
+  /// stored tokens unreadable, so users must reconnect.
+  TOKEN_ENCRYPTION_KEY: optionalString,
+  /// Secret for POST /api/scheduler/meta-publish (separate consumer, so a
+  /// separate secret, like the other webhook secrets).
+  META_PUBLISH_WEBHOOK_SECRET: optionalString,
+  /// Optional. Lets jobs without a user session (the Meta scheduler, trend
+  /// housekeeping) delete prepared images in the `publish-media` bucket.
+  /// Used ONLY by src/lib/supabase/admin.ts for that bucket; never sent to
+  /// the browser. Without it, cleanup happens when the owner opens
+  /// /platforms.
+  SUPABASE_SERVICE_ROLE_KEY: optionalString,
+  /// Optional. Brave Search News API key for Research Studio source discovery
+  /// (broad news coverage). Without it, discovery uses the keyless official
+  /// APIs only (Hacker News Search, DEV) plus already-collected trends.
+  BRAVE_SEARCH_API_KEY: optionalString,
 });
 
 export const serverEnv = schema.parse({
@@ -83,4 +118,11 @@ export const serverEnv = schema.parse({
   POLLINATIONS_MODEL: process.env.POLLINATIONS_MODEL,
   SCHEDULER_WEBHOOK_SECRET: process.env.SCHEDULER_WEBHOOK_SECRET,
   ANALYTICS_WEBHOOK_SECRET: process.env.ANALYTICS_WEBHOOK_SECRET,
+  META_APP_ID: process.env.META_APP_ID,
+  META_APP_SECRET: process.env.META_APP_SECRET,
+  META_GRAPH_API_VERSION: process.env.META_GRAPH_API_VERSION,
+  TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
+  META_PUBLISH_WEBHOOK_SECRET: process.env.META_PUBLISH_WEBHOOK_SECRET,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  BRAVE_SEARCH_API_KEY: process.env.BRAVE_SEARCH_API_KEY,
 });

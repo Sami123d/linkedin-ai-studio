@@ -1,6 +1,11 @@
 "use client";
 
-import { CheckIcon, ExternalLinkIcon, XIcon } from "lucide-react";
+import {
+  CheckIcon,
+  ExternalLinkIcon,
+  TelescopeIcon,
+  XIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -72,6 +77,14 @@ export function TrendList({ trends }: { trends: Trend[] }) {
               )}
             </div>
             <div className="flex shrink-0 gap-1">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                render={<a href={`/studio?trend=${trend.id}`} />}
+              >
+                <TelescopeIcon />
+                <span className="sr-only">Research with sources</span>
+              </Button>
               {trend.sourceUrl && (
                 <Button size="icon-sm" variant="ghost" render={<a
                   href={trend.sourceUrl}

@@ -24,3 +24,27 @@ export async function listScheduledPosts() {
     orderBy: { scheduledFor: "asc" },
   });
 }
+
+/// Approved Facebook/Instagram variants with a planned date. These are NOT
+/// handled by the scheduler/publisher — the calendar shows them as planned
+/// entries only. Ownership: variant.profileId plus Draft -> ContentPlan.
+export async function listPlannedVariants() {
+  const profileId = await requireProfileId();
+
+  return prisma.platformVariant.findMany({
+    where: {
+      profileId,
+      approvalStatus: "APPROVED",
+      scheduledFor: { not: null },
+      draft: { contentPlan: { profileId } },
+    },
+    include: {
+      draft: {
+        include: {
+          contentPlan: { include: { research: { include: { trend: true } } } },
+        },
+      },
+    },
+    orderBy: { scheduledFor: "asc" },
+  });
+}

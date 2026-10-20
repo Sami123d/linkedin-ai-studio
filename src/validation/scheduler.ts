@@ -9,7 +9,8 @@ export const publishCallbackSchema = z.object({
 });
 export type PublishCallbackInput = z.infer<typeof publishCallbackSchema>;
 
-/// Optional body for POST /api/scheduler/meta-publish.
+/// Optional body for POST /api/scheduler/meta-publish. `limit` caps how many
+/// due variants a single run claims (the SQL LIMIT in the route).
 export const metaPublishRequestSchema = z.object({
   limit: z.number().int().min(1).max(10).optional().default(3),
 });

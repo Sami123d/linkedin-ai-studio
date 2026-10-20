@@ -8,7 +8,8 @@ import { campaignPlatformSchema } from "@/validation/platforms";
 
 export const TIMEFRAME_OPTIONS = [1, 7, 30, 90] as const;
 
-/// Blank form fields become undefined.
+/// Blank form fields become undefined, so "" never reaches the prompt or DB
+/// as if it were a real preference.
 const optionalText = (max: number) =>
   z
     .string()

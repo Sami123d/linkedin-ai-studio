@@ -19,7 +19,8 @@ const ENTITIES: Record<string, string> = {
 export function cleanText(value: unknown, max = 1000): string | null {
   if (typeof value !== "string") return null;
   const text = value
-    // Block-level tags separate words; inline tags (b, a, em…) do not.
+    // Block-level tags become a space so words don't run together; inline
+    // tags (b, a, em…) are removed without a space since they can sit mid-word.
     .replace(/<\/?(?:br|p|div|li|ul|ol|h[1-6]|tr|td|blockquote)\b[^>]*>/gi, " ")
     .replace(/<[^>]*>/g, "")
     .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, code: string) => {

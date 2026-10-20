@@ -50,7 +50,8 @@ export function buildVariantSuccessUpdate(input: {
   };
 }
 
-/// Hashtag text box -> list ("#a, b  #c" -> ["a","b","c"]).
+/// Hashtag text box -> raw tokens ("#a, b  #c" -> ["#a","b","#c"]).
+/// Stripping "#" and de-duplicating is left to hashtagListSchema.
 export function parseHashtagInput(input: string): string[] {
   return input.split(/[\s,]+/).filter(Boolean);
 }

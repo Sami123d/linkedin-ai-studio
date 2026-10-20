@@ -6,6 +6,7 @@ import "server-only";
 /// Payload format: `v1.<iv>.<authTag>.<ciphertext>`, each part base64url.
 /// The version prefix leaves room for key rotation later.
 const VERSION = "v1";
+/// 96-bit IV, the size GCM is designed for; a fresh random one per message.
 const IV_BYTES = 12;
 
 /// Accepts 32 bytes as 64 hex chars or base64. Hex is checked first because

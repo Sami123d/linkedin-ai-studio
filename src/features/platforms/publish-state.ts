@@ -233,4 +233,6 @@ export const MANUAL_CLAIMABLE: VariantPublishStatus[] = [
   "NOT_PUBLISHED",
   "FAILED",
 ];
+/// The scheduler stops auto-claiming a variant after this many attempts; a
+/// manual publish from the UI is still allowed.
 export const MAX_AUTOMATIC_ATTEMPTS = 5;

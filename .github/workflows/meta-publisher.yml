@@ -1,0 +1,39 @@
+name: Meta Publisher
+
+# Every 15 minutes, ask the app to publish the approved Facebook/Instagram
+# variants that are due. The app holds the encrypted Meta tokens and does the
+# publishing; this job only needs the shared scheduler secret.
+#
+# Repository settings -> Secrets and variables -> Actions -> Secrets:
+#   META_PUBLISH_WEBHOOK_SECRET  (same value as in Vercel)
+# Variables: APP_BASE_URL (optional override)
+# GitHub may start scheduled runs a few minutes late.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meta-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish due Facebook/Instagram variants
+        run: node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/meta-publisher.ts
+        env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL || 'https://linkedin-ai-studio-alpha.vercel.app' }}
+          META_PUBLISH_WEBHOOK_SECRET: ${{ secrets.META_PUBLISH_WEBHOOK_SECRET }}

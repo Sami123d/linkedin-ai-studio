@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/db/prisma";
+import { deleteMediaForProfiles } from "@/features/platforms/media-cleanup";
 import type { Prisma } from "@/generated/prisma/client";
 
 /// How long things are kept before housekeeping removes them. Ages are
@@ -32,22 +33,39 @@ export type CleanupResult = {
 };
 
 /// Anything approved or published is never deleted: deleting its trend would
-/// cascade through the draft to the scheduled post and its analytics.
-const KEEP: Prisma.TrendWhereInput = {
+/// cascade through the draft to the scheduled post and its analytics, and to
+/// the Facebook/Instagram variants. A variant that is approved, or has any
+/// publish activity (publishing, published, failed or unconfirmed), keeps
+/// its campaign: losing an UNCONFIRMED record could lead to a duplicate post.
+export const KEEP: Prisma.TrendWhereInput = {
   researchBrief: {
     is: {
       contentPlans: {
         some: {
           draft: {
             is: {
-              scheduledPost: {
-                is: {
-                  OR: [
-                    { approvalStatus: "APPROVED" },
-                    { publishedAt: { not: null } },
-                  ],
+              OR: [
+                {
+                  scheduledPost: {
+                    is: {
+                      OR: [
+                        { approvalStatus: "APPROVED" },
+                        { publishedAt: { not: null } },
+                      ],
+                    },
+                  },
                 },
-              },
+                {
+                  platformVariants: {
+                    some: {
+                      OR: [
+                        { approvalStatus: "APPROVED" },
+                        { publishStatus: { not: "NOT_PUBLISHED" } },
+                      ],
+                    },
+                  },
+                },
+              ],
             },
           },
         },
@@ -71,6 +89,17 @@ function failedOrStuck(stuckBefore: Date): StageFilter {
   };
 }
 
+export function groupMediaByProfile(
+  rows: { profileId: string; mediaUrl: string | null }[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const r of rows) {
+    if (!r.mediaUrl) continue;
+    out.set(r.profileId, [...(out.get(r.profileId) ?? []), r.mediaUrl]);
+  }
+  return out;
+}
+
 /// Pure so the rules can be unit-tested without a database.
 export function buildCleanupFilters(options: CleanupOptions = {}) {
   const keep = { ...DEFAULT_RETENTION, ...options };
@@ -81,13 +110,17 @@ export function buildCleanupFilters(options: CleanupOptions = {}) {
 
   const stage = failedOrStuck(ago(keep.stuckMinutes * 60_000));
 
+  // Private Research Studio trends (profileId set) are never housekept:
+  // they don't clutter the shared Trends page and belong to their owner.
   const untouchedTrends: Prisma.TrendWhereInput = {
+    profileId: null,
     status: { in: ["NEW", "DISMISSED"] },
     researchBrief: { is: null },
     createdAt: { lt: ago(keep.untouchedTrendDays * DAY) },
   };
 
   const failedPipelines: Prisma.TrendWhereInput = {
+    profileId: null,
     NOT: KEEP,
     researchBrief: {
       is: {
@@ -120,6 +153,7 @@ export function buildCleanupFilters(options: CleanupOptions = {}) {
   };
 
   const unapprovedPipelines: Prisma.TrendWhereInput = {
+    profileId: null,
     NOT: KEEP,
     researchBrief: {
       is: { createdAt: { lt: ago(keep.unapprovedDays * DAY) } },
@@ -140,6 +174,17 @@ export async function cleanupStaleData(
 
   async function remove(where: Prisma.TrendWhereInput): Promise<number> {
     if (options.dryRun) return prisma.trend.count({ where });
+    // Deleting the trend cascades to platform variants; delete any prepared
+    // publish images they still reference first (best effort, profile-
+    // scoped; the orphan sweep catches anything left behind).
+    const variants = await prisma.platformVariant.findMany({
+      where: {
+        mediaUrl: { not: null },
+        draft: { contentPlan: { research: { trend: where } } },
+      },
+      select: { profileId: true, mediaUrl: true },
+    });
+    await deleteMediaForProfiles(groupMediaByProfile(variants));
     return (await prisma.trend.deleteMany({ where })).count;
   }
 

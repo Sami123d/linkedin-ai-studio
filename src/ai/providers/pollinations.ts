@@ -86,6 +86,17 @@ export class PollinationsImageProvider implements ImageProvider {
   readonly name = "pollinations";
   readonly generative = true;
 
+  /// Uploads to media.pollinations.ai, which needs the API key.
+  async host(image: Blob): Promise<string> {
+    const apiKey = serverEnv.POLLINATIONS_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "Hosting an image on Pollinations needs POLLINATIONS_API_KEY.",
+      );
+    }
+    return uploadToMedia(image, image.type || "image/png", apiKey);
+  }
+
   async getImage(query: string): Promise<ImageResult> {
     const apiKey = serverEnv.POLLINATIONS_API_KEY;
     const url = buildPollinationsUrl({

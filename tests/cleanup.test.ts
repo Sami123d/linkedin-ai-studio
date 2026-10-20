@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/prisma", () => ({ prisma: {} }));
+vi.mock("@/features/platforms/media-cleanup", () => ({
+  deleteMediaForProfiles: vi.fn(),
+}));
 
 const { buildCleanupFilters, DEFAULT_RETENTION } =
   await import("@/features/cleanup/cleanup");
@@ -12,6 +15,7 @@ describe("buildCleanupFilters", () => {
   it("only targets untouched NEW/DISMISSED trends older than the retention", () => {
     const { untouchedTrends } = buildCleanupFilters({ now });
     expect(untouchedTrends).toEqual({
+      profileId: null,
       status: { in: ["NEW", "DISMISSED"] },
       researchBrief: { is: null },
       createdAt: { lt: hoursAgo(DEFAULT_RETENTION.untouchedTrendDays * 24) },
@@ -69,5 +73,17 @@ describe("buildCleanupFilters", () => {
     expect(JSON.stringify(failedPipelines)).toContain(
       `"createdAt":{"lt":"${now.toISOString()}"}`,
     );
+  });
+
+  it("never deletes a campaign whose Facebook/Instagram variant is approved or has publish activity", () => {
+    const { failedPipelines, unapprovedPipelines } = buildCleanupFilters({
+      now,
+    });
+    for (const filter of [failedPipelines, unapprovedPipelines]) {
+      const keep = JSON.stringify(filter.NOT);
+      expect(keep).toContain(
+        '"platformVariants":{"some":{"OR":[{"approvalStatus":"APPROVED"},{"publishStatus":{"not":"NOT_PUBLISHED"}}]}}',
+      );
+    }
   });
 });

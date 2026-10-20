@@ -5,6 +5,10 @@ import {
   StructuredGenerationError,
 } from "@/ai/generate-structured";
 import type { AIGenerateResult, AIProvider } from "@/ai/providers";
+import {
+  formatCreativeContext,
+  type CreativeContext,
+} from "@/ai/creative-context";
 import type { ContentFormat } from "@/generated/prisma/client";
 import { draftContentSchema, type DraftContent } from "@/validation/writing";
 
@@ -50,9 +54,11 @@ export type WritingInput = {
   callToAction: string;
   writingSamples: string[];
   knowledgeContext: string[];
+  /// Research Studio preferences + verified findings (optional).
+  creative?: CreativeContext | null;
 };
 
-function buildPrompt(input: WritingInput): string {
+export function buildPrompt(input: WritingInput): string {
   const lines = [
     `Format: ${input.format}`,
     `Angle: ${input.selectedAngle}`,
@@ -85,6 +91,7 @@ function buildPrompt(input: WritingInput): string {
     );
   }
 
+  lines.push(...formatCreativeContext(input.creative));
   lines.push("Write the post now.");
   return lines.join("\n");
 }

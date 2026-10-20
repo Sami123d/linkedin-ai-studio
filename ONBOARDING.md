@@ -303,3 +303,69 @@ local development with self-hosted n8n in Docker, use your machine's LAN
 IP (e.g. `http://192.168.1.x:3000`) or a tunnel (e.g. `ngrok`) instead.
 This only matters once you're testing the workflows against a real
 running app, not before.
+
+---
+
+## 8. How do I publish to Facebook and Instagram?
+
+This is separate from LinkedIn (which still uses the publisher workflow). Facebook and Instagram publishing runs inside the app through Meta's official API, and the app keeps the Meta tokens encrypted. See the README section "Meta publishing" for the full explanation and limits.
+
+### One-time setup
+
+1. **Meta app**: create an app at developers.facebook.com, add *Facebook Login*, and add `<NEXT_PUBLIC_SITE_URL>/auth/meta/callback` under *Valid OAuth Redirect URIs*.
+2. **Accounts**: you need a Facebook **Page** you can create content on, and for Instagram a **professional** account linked to that Page. Personal profiles are not supported.
+3. **Environment variables** (server only, never commit them):
+
+```bash
+META_APP_ID=<from App settings -> Basic>
+META_APP_SECRET=<from App settings -> Basic>
+TOKEN_ENCRYPTION_KEY=<64 hex chars: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+META_PUBLISH_WEBHOOK_SECRET=<random hex, only for scheduled publishing>
+# Optional, server only: lets scheduled publishing and housekeeping clean up
+# prepared images without a signed-in user (Supabase -> Project Settings -> API).
+# SUPABASE_SERVICE_ROLE_KEY=<service_role key>
+# META_GRAPH_API_VERSION=v25.0   (optional)
+```
+
+4. **Migrations**: `npx prisma migrate deploy` applies `20261018000000_add_platform_variants`, `20261018010000_add_meta_publishing` (it also creates the public `publish-media` storage bucket) and `20261018020000_publish_media_select_policy` (lets users see and delete only their own prepared images, so cleanup works). Apply them to your development database first.
+5. **Scheduled publishing (optional)**: add the GitHub Actions secret `META_PUBLISH_WEBHOOK_SECRET`. Without it use *Publish now*.
+
+### Testing one Facebook post and one Instagram post
+
+1. Run the app (`npm run dev`), sign in, go to `/platforms`. The Meta panel should show *Not connected* (or *Not configured* with the missing variable names).
+2. Click **Connect Meta account**, approve every permission, and choose the Page you can post to. You should see the Page name and `@instagram` username (or a note that no Instagram account is linked).
+3. Pick a campaign with a completed LinkedIn draft and an image (generate one on `/images`), select Facebook and Instagram, then **Generate** each version.
+4. Facebook: **Approve & schedule** (any future time), then **Publish now**. It should show *Published* with a *View post* link only after Meta confirms. Check the Page.
+5. Instagram: the same steps; the image must exist. Publishing waits for Meta to process the image, so if it says it is still processing, press **Publish now** again in a minute (the same upload is reused).
+6. Use a throwaway Page and Instagram account for testing: these are real posts.
+
+Troubleshooting: *Reconnect needed* means Meta rejected the token (expired, password change or role removed). *Outcome unconfirmed* means the post may be live: press **Check status** before publishing again.
+
+### Checklist
+
+- [ ] Meta app created, redirect URI added, App ID/secret set
+- [ ] `TOKEN_ENCRYPTION_KEY` set (and backed up: changing it forces reconnects)
+- [ ] All three new migrations applied
+- [ ] Connected a Page; Instagram username shown if you need Instagram
+- [ ] Test Facebook and Instagram posts published and verified on the platform
+- [ ] (Optional) `META_PUBLISH_WEBHOOK_SECRET` set in the app and in GitHub secrets
+
+---
+
+## 9. How do I research a topic and turn it into posts?
+
+Open **Research Studio** (`/studio`), or click the telescope button on a trend in `/trends`.
+
+1. Apply the migration `20261019000000_add_research_studio` (`npx prisma migrate deploy`, development database first).
+2. Optional: set `BRAVE_SEARCH_API_KEY` (server only) for broad news search. Without it, sources come from Hacker News Search, DEV and already-collected trends, which is strongest for tech topics.
+3. Enter a prompt, timeframe, audience, niche, angle, purpose, tone, platforms and any instructions, then **Research topic**. Sources appear grouped as recent, background or undated, each with publisher, date and link.
+4. Tick the sources to use (and optionally a focus headline), then **Build research brief**. Open each finding to check its evidence. Unverified statements are labelled.
+5. **Continue to content** runs plan → write → review → image and creates the Facebook/Instagram variants you selected. If a step fails, press the button again to continue from that step.
+6. Edit and approve the LinkedIn post in **Approval**, and the Facebook/Instagram versions in **Platforms**. Nothing is approved or published automatically.
+
+### Checklist
+
+- [ ] Research Studio migration applied
+- [ ] (Optional) `BRAVE_SEARCH_API_KEY` set on the server
+- [ ] A test request returns dated sources from at least one provider
+- [ ] The brief's findings link to the right sources

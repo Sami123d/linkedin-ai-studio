@@ -23,12 +23,16 @@ export async function listImageQueue() {
   });
 }
 
-export async function runImageGeneration(draftId: string): Promise<ActionResult> {
+export async function runImageGeneration(
+  draftId: string,
+): Promise<ActionResult> {
   const profileId = await requireProfileId();
 
   const draft = await prisma.draft.findUnique({
     where: { id: draftId },
-    include: { contentPlan: { include: { research: { include: { trend: true } } } } },
+    include: {
+      contentPlan: { include: { research: { include: { trend: true } } } },
+    },
   });
   if (!draft || draft.contentPlan.profileId !== profileId) {
     return { error: "Draft not found." };
@@ -73,6 +77,8 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
           angle: draft.contentPlan.selectedAngle,
           hook: draft.contentPlan.hook,
           content: draft.content ?? draft.slides.join("\n"),
+          summary: draft.contentPlan.research.executiveSummary,
+          keyInsights: draft.contentPlan.research.keyInsights,
         })
       : null;
     const imageQuery = reviewed?.scene ?? query;
@@ -112,7 +118,7 @@ export async function runImageGeneration(draftId: string): Promise<ActionResult>
     return {
       success: true,
       message: reviewed?.review
-        ? `Image generated: relevance ${reviewed.review.relevance}/10 after ${reviewed.rounds} attempt(s).`
+        ? `Image generated: relevance ${reviewed.review.relevance}/10 after ${reviewed.rounds} attempt(s)${reviewed.branded ? ", HalfClicks branding added" : ""}.`
         : "Image found.",
     };
   } catch (error) {

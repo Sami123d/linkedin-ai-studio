@@ -6,12 +6,38 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ContentPlan, Draft, ResearchBrief, ScheduledPost, Trend } from "@/generated/prisma/client";
+import type {
+  ContentPlan,
+  Draft,
+  PlatformVariant,
+  ResearchBrief,
+  ScheduledPost,
+  Trend,
+  VariantPublishStatus,
+} from "@/generated/prisma/client";
+import { PLATFORM_META } from "@/features/platforms/config";
 
 type CalendarPost = ScheduledPost & {
   draft: Draft & {
     contentPlan: ContentPlan & { research: ResearchBrief & { trend: Trend } };
   };
+};
+
+type PlannedVariant = PlatformVariant & {
+  draft: Draft & {
+    contentPlan: ContentPlan & { research: ResearchBrief & { trend: Trend } };
+  };
+};
+
+const VARIANT_STATUS: Record<
+  VariantPublishStatus,
+  { label: string; variant: "default" | "secondary" | "destructive" }
+> = {
+  NOT_PUBLISHED: { label: "Planned, not published", variant: "secondary" },
+  PUBLISHING: { label: "Publishing", variant: "secondary" },
+  PUBLISHED: { label: "Published", variant: "default" },
+  FAILED: { label: "Publish failed", variant: "destructive" },
+  UNCONFIRMED: { label: "Outcome unconfirmed", variant: "destructive" },
 };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -24,7 +50,13 @@ function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
+export function MonthCalendar({
+  posts,
+  plannedVariants = [],
+}: {
+  posts: CalendarPost[];
+  plannedVariants?: PlannedVariant[];
+}) {
   const today = useMemo(() => new Date(), []);
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -44,6 +76,20 @@ export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
     }
     return map;
   }, [posts, viewYear, viewMonth]);
+
+  const plannedByDay = useMemo(() => {
+    const map = new Map<number, PlannedVariant[]>();
+    for (const v of plannedVariants) {
+      if (!v.scheduledFor) continue;
+      const date = new Date(v.scheduledFor);
+      if (date.getFullYear() !== viewYear || date.getMonth() !== viewMonth) {
+        continue;
+      }
+      const day = date.getDate();
+      map.set(day, [...(map.get(day) ?? []), v]);
+    }
+    return map;
+  }, [plannedVariants, viewYear, viewMonth]);
 
   const firstWeekday = startOfMonth(viewYear, viewMonth).getDay();
   const totalDays = daysInMonth(viewYear, viewMonth);
@@ -108,6 +154,8 @@ export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
                 viewMonth === today.getMonth() &&
                 day === today.getDate();
               const dayPosts = day !== null ? (postsByDay.get(day) ?? []) : [];
+              const dayPlanned =
+                day !== null ? (plannedByDay.get(day) ?? []) : [];
 
               return (
                 <div
@@ -133,6 +181,16 @@ export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
                             className="bg-secondary text-secondary-foreground truncate rounded px-1 py-0.5 text-xs"
                           >
                             {post.draft.contentPlan.research.trend.topic}
+                          </p>
+                        ))}
+                        {dayPlanned.map((v) => (
+                          <p
+                            key={v.id}
+                            title={`${PLATFORM_META[v.platform].label} (${VARIANT_STATUS[v.publishStatus].label}): ${v.draft.contentPlan.research.trend.topic}`}
+                            className="text-muted-foreground truncate rounded border border-dashed px-1 py-0.5 text-xs"
+                          >
+                            {PLATFORM_META[v.platform].label}:{" "}
+                            {v.draft.contentPlan.research.trend.topic}
                           </p>
                         ))}
                       </div>
@@ -202,6 +260,50 @@ export function MonthCalendar({ posts }: { posts: CalendarPost[] }) {
           </div>
         )}
       </div>
+
+      {plannedVariants.length > 0 && (
+        <div>
+          <h2 className="mb-1 text-lg font-medium">Facebook and Instagram</h2>
+          <p className="text-muted-foreground mb-3 text-sm">
+            Entries you approved. They post at the planned time only if the Meta
+            publisher job is running, or when you press Publish now on the
+            Platforms page. Only Published entries are live.
+          </p>
+          <div className="grid gap-2">
+            {plannedVariants.map((v) => (
+              <Card key={v.id} className="border-dashed">
+                <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
+                  <span className="text-sm font-medium">
+                    {v.draft.contentPlan.research.trend.topic}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {PLATFORM_META[v.platform].label}
+                    </Badge>
+                    <Badge variant={VARIANT_STATUS[v.publishStatus].variant}>
+                      {VARIANT_STATUS[v.publishStatus].label}
+                    </Badge>
+                    {v.publishStatus === "PUBLISHED" && v.publishedUrl && (
+                      <a
+                        href={v.publishedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground text-xs underline underline-offset-2"
+                      >
+                        View post
+                      </a>
+                    )}
+                    <span className="text-muted-foreground text-sm">
+                      {v.scheduledFor &&
+                        new Date(v.scheduledFor).toLocaleString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,7 +8,7 @@ import "server-only";
 export type MetaErrorCategory =
   | "auth" // token invalid/expired/revoked -> reconnect
   | "permission" // missing permission / Page role
-  | "rate_limit"
+  | "rate_limit" // app/user/Page throttling -> retry later
   | "blocked" // policy block
   | "rejected" // definitive 4xx rejection (bad input, media, duplicate…)
   | "transient" // Meta-side 5xx / temporary error

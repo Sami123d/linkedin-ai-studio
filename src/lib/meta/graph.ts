@@ -18,6 +18,7 @@ export type MetaErrorCategory =
 export class MetaApiError extends Error {
   constructor(
     /// Safe to show to the user: contains no token, no raw provider text.
+    /// Error codes and the trace id go in `details`, for the audit row only.
     readonly safeMessage: string,
     readonly category: MetaErrorCategory,
     readonly details: {

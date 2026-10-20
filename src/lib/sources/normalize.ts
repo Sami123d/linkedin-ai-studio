@@ -69,7 +69,8 @@ export function canonicalizeUrl(raw: string | null | undefined): string | null {
   return `${url.protocol}//${host}${port}${path}${query}`;
 }
 
-/// Normalized title used to catch the same story under different URLs.
+/// Normalized title used to catch the same story under different URLs:
+/// lowercase, punctuation collapsed to spaces, capped at 160 chars.
 export function titleKey(title: string): string {
   return title
     .toLowerCase()

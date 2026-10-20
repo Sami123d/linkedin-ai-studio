@@ -41,7 +41,8 @@ export type DiscoveryResult = {
 const MAX_SOURCES = 40;
 
 /// How far back to search: the requested timeframe (recent) plus older
-/// background material, which the UI labels separately.
+/// background material, which the UI labels separately. Three times the
+/// timeframe, clamped to 30-365 days.
 export function lookbackDays(timeframeDays: number): number {
   return Math.min(365, Math.max(30, timeframeDays * 3));
 }

@@ -8,7 +8,8 @@ import "server-only";
 const VERSION = "v1";
 const IV_BYTES = 12;
 
-/// Accepts 32 bytes as 64 hex chars or base64.
+/// Accepts 32 bytes as 64 hex chars or base64. Hex is checked first because
+/// a 64-char hex string is also valid base64 (but decodes to 48 bytes).
 export function parseEncryptionKey(raw: string): Buffer {
   const trimmed = raw.trim();
   const key = /^[0-9a-fA-F]{64}$/.test(trimmed)

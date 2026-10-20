@@ -44,7 +44,8 @@ export function verifyOAuthState(
   const nonce = state.slice(0, dot);
   const mac = state.slice(dot + 1);
 
-  // The state returned by Meta must match the one this browser started.
+  // The state returned by Meta must match the one this browser started;
+  // this is what blocks a login-CSRF callback forged from another browser.
   const a = Buffer.from(nonce);
   const b = Buffer.from(cookieNonce);
   if (a.length !== b.length || !timingSafeEqual(a, b)) {

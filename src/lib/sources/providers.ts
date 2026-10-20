@@ -43,6 +43,8 @@ const USER_AGENT = "linkedin-ai-studio-research/1.0";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 /// Default fetcher: GET, JSON, 10 s timeout, 2 MB cap, never logs headers.
+/// The cap is checked on the decoded text length, a cheap approximation of
+/// bytes that is good enough to reject runaway responses.
 export const defaultFetchJson: FetchJson = async (url, init) => {
   const response = await fetch(url, {
     headers: {

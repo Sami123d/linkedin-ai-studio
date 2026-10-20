@@ -30,7 +30,7 @@ export function parseIPv6(text: string): number[] | null {
     const v4 = parseIPv4(s.slice(lastColon + 1));
     if (!v4) return null;
     tail = v4;
-    s = s.slice(0, lastColon + 1) + "0:0"; // placeholder hextets
+    s = s.slice(0, lastColon + 1) + "0:0"; // placeholder hextets, overwritten by the IPv4 tail
   }
 
   const halves = s.split("::");

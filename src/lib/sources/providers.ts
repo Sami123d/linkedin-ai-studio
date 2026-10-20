@@ -147,6 +147,7 @@ export async function searchDevTo(
 }
 
 /// Brave "freshness": pd = 24 h, pw = 7 days, pm = 31 days, py = 1 year.
+/// Rounds up to the next bucket so the requested window is always covered.
 export function braveFreshness(days: number): string {
   if (days <= 1) return "pd";
   if (days <= 7) return "pw";

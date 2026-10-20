@@ -34,7 +34,8 @@ export type ProviderResult = {
 export type DiscoveryResult = {
   sources: RankedSource[];
   providerResults: Partial<Record<SourceProvider, ProviderResult>>;
-  /// True when every provider that actually ran failed.
+  /// True when every provider that actually ran failed. Providers skipped for
+  /// missing config don't count, so "no providers configured" is not a failure.
   allFailed: boolean;
 };
 

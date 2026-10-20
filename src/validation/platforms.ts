@@ -27,7 +27,8 @@ export const generateVariantSchema = z.object({
   platform: variantPlatformSchema,
 });
 
-/// Accepts "#tag" or "tag", trims, drops blanks and duplicates.
+/// Accepts "#tag" or "tag", trims, removes inner whitespace, drops blanks and
+/// duplicates (first occurrence wins, order preserved).
 export const hashtagListSchema = z.array(z.string()).transform((tags) => {
   const seen = new Set<string>();
   for (const tag of tags) {

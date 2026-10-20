@@ -79,8 +79,9 @@ export function titleKey(title: string): string {
     .slice(0, 160);
 }
 
-/// Parses a provider date; rejects invalid dates and dates more than a day
-/// in the future (clock skew is fine, a wrong year is not).
+/// Parses a provider date; rejects invalid dates, dates more than a day in
+/// the future (clock skew is fine, a wrong year is not) and dates before 1990
+/// (usually an epoch-zero or missing-field default, not a real date).
 export function parseDate(value: unknown, now: Date): Date | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const date = new Date(value);

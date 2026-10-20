@@ -39,6 +39,7 @@ export type DiscoveryResult = {
   allFailed: boolean;
 };
 
+/// Applied after ranking, so the cut drops the least relevant sources.
 const MAX_SOURCES = 40;
 
 /// How far back to search: the requested timeframe (recent) plus older
